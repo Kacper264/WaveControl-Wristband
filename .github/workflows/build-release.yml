@@ -3,7 +3,7 @@ name: Build & Release ESP32 Firmware
 on:
   push:
     branches:
-      - main          # uniquement la branche main
+      - wifi          # uniquement la branche main
 
 jobs:
   build-and-release:
