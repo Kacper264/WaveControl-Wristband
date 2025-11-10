@@ -13,8 +13,6 @@
 #include "wifi_manager.h"
 #include "mqtt_manager.h"
 
-// ============== GPIO BOUTON ==============
-
 static void button_init(void)
 {
     gpio_config_t io_conf = {
@@ -36,8 +34,6 @@ static bool button_is_pressed(void)
     else
         return (level == 1);
 }
-
-// ============== TASK BOUTON ==============
 
 static void button_task(void *pvParameters)
 {
@@ -74,11 +70,9 @@ static void button_task(void *pvParameters)
     }
 }
 
-// ============== app_main =====================
-
 void app_main(void)
 {
-    // Init NVS (obligatoire avant WiFi)
+
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
     {
