@@ -6,6 +6,7 @@
 #include "nvs_flash.h"
 #include "esp_log.h"
 #include "esp_err.h"
+#include "esp_timer.h"
 
 #include "driver/gpio.h"
 
@@ -13,60 +14,42 @@
 #include "wifi_manager.h"
 #include "mqtt_manager.h"
 
-static void button_init(void)
-{
-    gpio_config_t io_conf = {
-        .pin_bit_mask = (1ULL << BTN_GPIO),
-        .mode = GPIO_MODE_INPUT,
-        .pull_up_en = BTN_ACTIVE_LOW ? GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE,
-        .pull_down_en = BTN_ACTIVE_LOW ? GPIO_PULLDOWN_DISABLE : GPIO_PULLDOWN_ENABLE,
-        .intr_type = GPIO_INTR_DISABLE
-    };
-    gpio_config(&io_conf);
-}
-
-static bool button_is_pressed(void)
-{
-    int level = gpio_get_level(BTN_GPIO);
-
-    if (BTN_ACTIVE_LOW)
-        return (level == 0);
-    else
-        return (level == 1);
-}
-
-static void button_task(void *pvParameters)
+static void heartbeat_task(void *pvParameters)
 {
     (void)pvParameters;
 
-    bool last_state = false;
-
     while (1)
     {
-        bool pressed = button_is_pressed();
-
-        if (pressed && !last_state)
+        esp_mqtt_client_handle_t client = mqtt_get_client();
+        if (client != NULL)
         {
-            ESP_LOGI(TAG_APP, "[Bouton] Appuyé -> envoi MQTT");
+            // Temps d'utilisation
+            int64_t now_us = esp_timer_get_time();
+            int64_t now_ms = now_us / 1000;
 
-            esp_mqtt_client_handle_t client = mqtt_get_client();
-            if (client != NULL)
-            {
-                esp_mqtt_client_publish(
-                    client,
-                    MQTT_TOPIC_BTN,
-                    "Bouton appuyé !",
-                    0,
-                    1,
-                    0
-                );
-            }
+            // Batterie
+            //float battery_v = battery_read_voltage();
 
-            vTaskDelay(pdMS_TO_TICKS(500)); // anti-rebond
+            char payload[128];
+            snprintf(payload, sizeof(payload),
+                     "TRAME_VIE, uptime: %lldms, battery_level=%.2f",
+                     (long long)now_ms,
+                     100.0f /*battery_v*/);
+
+            ESP_LOGI(TAG_APP, "[Heartbeat] Envoi trame de vie MQTT : %s", payload);
+
+            esp_mqtt_client_publish(
+                client,
+                MQTT_TOPIC_HEALTH,
+                payload,
+                0,
+                1,
+                0
+            );
         }
 
-        last_state = pressed;
-        vTaskDelay(pdMS_TO_TICKS(10));
+        // Attendre 60 secondes
+        vTaskDelay(pdMS_TO_TICKS(60 * 1000));
     }
 }
 
@@ -80,11 +63,8 @@ void app_main(void)
         ESP_ERROR_CHECK(nvs_flash_init());
     }
 
-    ESP_LOGI(TAG_APP, "Démarrage WaveControl (ESP-IDF)");
-
     wifi_init_sta();
     mqtt_init();
-    button_init();
 
-    xTaskCreate(button_task, "button_task", 4096, NULL, 5, NULL);
+    xTaskCreate(heartbeat_task, "heartbeat_task", 4096, NULL, 5, NULL);
 }

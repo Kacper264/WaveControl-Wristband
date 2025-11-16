@@ -8,9 +8,6 @@
 
 static esp_mqtt_client_handle_t s_mqtt_client = NULL;
 
-/**
- * @brief Callback principal pour les événements MQTT
- */
 static void mqtt_event_handler(void *handler_args,
                                esp_event_base_t base,
                                int32_t event_id,
@@ -24,49 +21,28 @@ static void mqtt_event_handler(void *handler_args,
 
     switch ((esp_mqtt_event_id_t)event_id)
     {
+        case MQTT_EVENT_BEFORE_CONNECT:
+            ESP_LOGD(TAG_APP, "[MQTT] Avant connexion au broker");
+            break;
+
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG_APP, "[MQTT] Connecté au broker");
 
-            // --> S'abonner à un topic dès la connexion
+
             ESP_LOGI(TAG_APP, "[MQTT] Souscription au topic: %s", MQTT_TOPIC_SUB);
-            esp_mqtt_client_subscribe(client, MQTT_TOPIC_SUB, 0);
-            break;
-
-        case MQTT_EVENT_DISCONNECTED:
-            ESP_LOGW(TAG_APP, "[MQTT] Déconnecté du broker");
-            break;
-
-        case MQTT_EVENT_SUBSCRIBED:
-            ESP_LOGI(TAG_APP, "[MQTT] Abonnement confirmé (msg_id=%d)", event->msg_id);
-            break;
-
-        case MQTT_EVENT_UNSUBSCRIBED:
-            ESP_LOGI(TAG_APP, "[MQTT] Désabonnement confirmé (msg_id=%d)", event->msg_id);
-            break;
-
-        case MQTT_EVENT_PUBLISHED:
-            ESP_LOGI(TAG_APP, "[MQTT] Message publié (msg_id=%d)", event->msg_id);
             break;
 
         case MQTT_EVENT_DATA:
             ESP_LOGI(TAG_APP, "[MQTT] Message reçu !");
-            ESP_LOGI(TAG_APP, "Topic : %.*s", event->topic_len, event->topic);
-            ESP_LOGI(TAG_APP, "Données : %.*s", event->data_len, event->data);
-            break;
-
-        case MQTT_EVENT_ERROR:
-            ESP_LOGE(TAG_APP, "[MQTT] Erreur MQTT détectée");
             break;
 
         default:
-            ESP_LOGD(TAG_APP, "[MQTT] Événement non géré : %d", event_id);
+            /* Unhandled events can be ignored or logged for debugging */
             break;
     }
 }
 
-/**
- * @brief Initialise et démarre le client MQTT
- */
+
 void mqtt_init(void)
 {
     esp_mqtt_client_config_t mqtt_cfg = { 0 };
@@ -89,7 +65,6 @@ void mqtt_init(void)
     // Démarre le client
     ESP_ERROR_CHECK(esp_mqtt_client_start(s_mqtt_client));
 
-    ESP_LOGI(TAG_APP, "[MQTT] Initialisation terminée");
 }
 
 /**
