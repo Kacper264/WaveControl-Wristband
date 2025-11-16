@@ -22,18 +22,18 @@ static void mqtt_event_handler(void *handler_args,
     switch ((esp_mqtt_event_id_t)event_id)
     {
         case MQTT_EVENT_BEFORE_CONNECT:
-            ESP_LOGD(TAG_APP, "[MQTT] Avant connexion au broker");
+            DEBUG_PRINT("[MQTT] Avant connexion au broker");
             break;
 
         case MQTT_EVENT_CONNECTED:
-            ESP_LOGI(TAG_APP, "[MQTT] Connecté au broker");
+            DEBUG_PRINT("[MQTT] Connecté au broker");
 
 
-            ESP_LOGI(TAG_APP, "[MQTT] Souscription au topic: %s", MQTT_TOPIC_SUB);
+            DEBUG_PRINT("[MQTT] Souscription au topic: %s", MQTT_TOPIC_SUB);
             break;
 
         case MQTT_EVENT_DATA:
-            ESP_LOGI(TAG_APP, "[MQTT] Message reçu !");
+            DEBUG_PRINT("[MQTT] Message reçu !");
             break;
 
         default:

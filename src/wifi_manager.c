@@ -25,13 +25,13 @@ static void wifi_event_handler(void *arg,
     }
     else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED)
     {
-        ESP_LOGW(TAG_APP, "WiFi déconnecté, reconnexion...");
+        DEBUG_PRINT("WiFi déconnecté, reconnexion...");
         s_wifi_connected = false;
         esp_wifi_connect();
     }
     else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
     {
-        ESP_LOGI(TAG_APP, "WiFi connecté, IP obtenue");
+        DEBUG_PRINT("WiFi connecté, IP obtenue");
         s_wifi_connected = true;
     }
 }

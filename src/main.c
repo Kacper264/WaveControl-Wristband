@@ -32,11 +32,16 @@ static void heartbeat_task(void *pvParameters)
 
             char payload[128];
             snprintf(payload, sizeof(payload),
-                     "TRAME_VIE, uptime: %lldms, battery_level=%.2f",
-                     (long long)now_ms,
-                     100.0f /*battery_v*/);
+            "{"
+                "\"health\": {"
+                "\"uptime_ms\": %lld,"
+                "\"battery_level\": %.2f"
+                "}"
+            "}",
+            (long long)now_ms,
+            100.0f /* battery_v */);
 
-            ESP_LOGI(TAG_APP, "[Heartbeat] Envoi trame de vie MQTT : %s", payload);
+            DEBUG_PRINT("[Heartbeat] Envoi trame de vie MQTT : %s", payload);
 
             esp_mqtt_client_publish(
                 client,
