@@ -1,0 +1,54 @@
+name: Build & Release ESP32 Firmware
+
+on:
+  push:
+    branches:
+      - main         # uniquement la branche main
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Read version from file
+        id: version
+        run: |
+          if [ ! -f version.txt ]; then
+            echo "version.txt manquant"; exit 1
+          fi
+          VERSION=$(cat version.txt | tr -d ' \n')
+          if [ -z "$VERSION" ]; then
+            echo "Version vide dans version.txt"; exit 1
+          fi
+          echo "Version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build firmware (ESP32)
+        run: pio run -e seeed_xiao_esp32s3
+
+      - name: Renommer le firmware avec la version
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          cp .pio/build/seeed_xiao_esp32s3/firmware.bin firmware_${VERSION}.bin
+
+      - name: Create / Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: "ESP32 Firmware ${{ steps.version.outputs.version }}"
+          files: firmware_${{ steps.version.outputs.version }}.bin
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
