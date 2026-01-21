@@ -34,29 +34,19 @@ static void mqtt_event_handler(void *handler_args,
     (void)event_base;
 
     esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
-    esp_mqtt_client_handle_t client = event->client;
 
     switch ((esp_mqtt_event_id_t)event_id)
     {
         case MQTT_EVENT_BEFORE_CONNECT:
-            ESP_LOGI(TAG, "Avant connexion au broker");
+            ESP_LOGI(TAG, "Avant connexion broker");
             break;
 
         case MQTT_EVENT_CONNECTED:
-            ESP_LOGI(TAG, "Connecté au broker");
-
-            ESP_LOGI(TAG, "Souscription au topic : %s", MQTT_TOPIC_SUB);
-            esp_mqtt_client_subscribe(client, MQTT_TOPIC_SUB, 1);
+            ESP_LOGI(TAG, "MQTT connecté");
             break;
 
         case MQTT_EVENT_DISCONNECTED:
-            ESP_LOGW(TAG, "Déconnecté du broker");
-            break;
-
-        case MQTT_EVENT_DATA:
-            ESP_LOGI(TAG, "Message reçu");
-            ESP_LOGD(TAG, "Topic : %.*s", event->topic_len, event->topic);
-            ESP_LOGD(TAG, "Payload : %.*s", event->data_len, event->data);
+            ESP_LOGW(TAG, "MQTT déconnecté");
             break;
 
         case MQTT_EVENT_ERROR:
@@ -64,7 +54,7 @@ static void mqtt_event_handler(void *handler_args,
             break;
 
         default:
-            /* Autres événements ignorés */
+            /* Événements non utilisés */
             break;
     }
 }
@@ -86,7 +76,7 @@ void mqtt_init(void)
     s_mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
     if (s_mqtt_client == NULL)
     {
-        ESP_LOGE(TAG, "Impossible d'initialiser le client MQTT");
+        ESP_LOGE(TAG, "Init MQTT impossible");
         return;
     }
 
