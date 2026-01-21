@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -8,11 +9,23 @@
 #include "esp_err.h"
 #include "esp_timer.h"
 
-#include "driver/gpio.h"
-
-#include "strings_constants.h"
 #include "wifi_manager.h"
 #include "mqtt_manager.h"
+#include "strings_constants.h"
+
+/* -------------------------------------------------------------------------- */
+/* Configuration                                                              */
+/* -------------------------------------------------------------------------- */
+
+#define HEARTBEAT_PERIOD_MS   (60 * 1000)
+#define HEARTBEAT_TASK_STACK  4096
+#define HEARTBEAT_TASK_PRIO   5
+
+static const char *TAG = "heartbeat";
+
+/* -------------------------------------------------------------------------- */
+/* Tâche heartbeat                                                             */
+/* -------------------------------------------------------------------------- */
 
 static void heartbeat_task(void *pvParameters)
 {
@@ -21,48 +34,50 @@ static void heartbeat_task(void *pvParameters)
     while (1)
     {
         esp_mqtt_client_handle_t client = mqtt_get_client();
+
         if (client != NULL)
         {
-            // Temps d'utilisation
-            int64_t now_us = esp_timer_get_time();
-            int64_t now_ms = now_us / 1000;
-
-            // Batterie
-            //float battery_v = battery_read_voltage();
+            int64_t uptime_ms = esp_timer_get_time() / 1000;
+            float battery_level = 100.0f; // Valeur simulée
 
             char payload[128];
-            snprintf(payload, sizeof(payload),
-            "{"
-                "\"health\": {"
-                "\"uptime_ms\": %lld,"
-                "\"battery_level\": %.2f"
-                "}"
-            "}",
-            (long long)now_ms,
-            100.0f /* battery_v */);
 
-            DEBUG_PRINT("[Heartbeat] Envoi trame de vie MQTT : %s", payload);
+            snprintf(payload, sizeof(payload),
+                     "{"
+                        "\"health\":{"
+                            "\"uptime_ms\":%lld,"
+                            "\"battery_level\":%.2f"
+                        "}"
+                     "}",
+                     (long long)uptime_ms,
+                     battery_level);
+
+            ESP_LOGD(TAG, "Envoi heartbeat MQTT : %s", payload);
 
             esp_mqtt_client_publish(
                 client,
                 MQTT_TOPIC_HEALTH,
                 payload,
-                0,
-                1,
-                0
+                0,      // longueur auto
+                1,      // QoS
+                0       // non retained
             );
         }
 
-        // Attendre 60 secondes
-        vTaskDelay(pdMS_TO_TICKS(60 * 1000));
+        vTaskDelay(pdMS_TO_TICKS(HEARTBEAT_PERIOD_MS));
     }
 }
 
+/* -------------------------------------------------------------------------- */
+/* Point d'entrée                                                              */
+/* -------------------------------------------------------------------------- */
+
 void app_main(void)
 {
+    esp_err_t err = nvs_flash_init();
 
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES ||
+        err == ESP_ERR_NVS_NEW_VERSION_FOUND)
     {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ESP_ERROR_CHECK(nvs_flash_init());
@@ -71,5 +86,12 @@ void app_main(void)
     wifi_init_sta();
     mqtt_init();
 
-    xTaskCreate(heartbeat_task, "heartbeat_task", 4096, NULL, 5, NULL);
+    xTaskCreate(
+        heartbeat_task,
+        "heartbeat_task",
+        HEARTBEAT_TASK_STACK,
+        NULL,
+        HEARTBEAT_TASK_PRIO,
+        NULL
+    );
 }
