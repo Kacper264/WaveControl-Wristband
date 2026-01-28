@@ -3,7 +3,7 @@ name: Build & Release ESP32 Firmware
 on:
   push:
     branches:
-      - main
+      - pre-prod
 
 jobs:
   build-and-release:
