@@ -3,6 +3,7 @@
 
 #include "imu.h"
 #include "ia.h"
+#include "ota.h"
 
 extern "C" {
 #include "freertos/FreeRTOS.h"
@@ -19,7 +20,7 @@ extern "C" {
 }
 
 #define TAG_APP "APP"
-#define BUTTON_PIN GPIO_NUM_7   // XIAO ESP32-S3 Sense
+#define BUTTON_PIN GPIO_NUM_7
 
 /* ================== STRUCT ================== */
 
@@ -43,30 +44,26 @@ static void acquisition_task(void *arg)
     {
         int btn = gpio_get_level(BUTTON_PIN);
 
-        // ---- déclenchement sur appui ----
         if (!acquiring && last_btn == 1 && btn == 0) {
             ESP_LOGI(TAG_APP, "Acquisition started");
             acquiring = true;
         }
         last_btn = btn;
 
-        // ---- idle ----
         if (!acquiring) {
             vTaskDelay(pdMS_TO_TICKS(10));
             continue;
         }
 
-        // ---- lecture IMU ----
         float ax, ay, az, gx, gy, gz;
         imu_read_filtered(&ax, &ay, &az, &gx, &gy, &gz);
 
-        // ---- push IA ----
         if (ai_push_sample(ax, ay, az, gx, gy, gz)) {
             ESP_LOGI(TAG_APP, "AI inference finished");
             acquiring = false;
         }
 
-        vTaskDelay(pdMS_TO_TICKS(20));   // 50 Hz
+        vTaskDelay(pdMS_TO_TICKS(20));
     }
 }
 
@@ -81,9 +78,7 @@ static void result_task(void *arg)
     {
         if (ai_get_result(&m, &c))
         {
-            AiResult r;
-            r.move = m;
-            r.confidence = c;
+            AiResult r{m, c};
             xQueueOverwrite(ai_queue, &r);
         }
 
@@ -113,6 +108,7 @@ static void mqtt_task(void *arg)
         );
     }
 }
+
 
 /* ================== MAIN ================== */
 

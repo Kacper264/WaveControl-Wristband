@@ -11,6 +11,8 @@ extern "C" {
 #include "strings_constants.h"
 }
 
+#include "ota.h"   // 👈 ajout OTA
+
 /* -------------------------------------------------------------------------- */
 
 static const char *TAG = "mqtt";
@@ -26,10 +28,10 @@ static void mqtt_event_handler(void *handler_args,
 {
     (void)handler_args;
     (void)event_base;
-    (void)event_id;
-    (void)event_data;
 
-    switch (static_cast<esp_mqtt_event_id_t>(event_id))
+    esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
+
+    switch ((esp_mqtt_event_id_t)event_id)
     {
         case MQTT_EVENT_BEFORE_CONNECT:
             ESP_LOGI(TAG, "Avant connexion broker");
@@ -37,6 +39,13 @@ static void mqtt_event_handler(void *handler_args,
 
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT connecté");
+
+            // 👇 abonnement OTA ici
+            esp_mqtt_client_subscribe(
+                s_mqtt_client,
+                "device/ota",
+                1
+            );
             break;
 
         case MQTT_EVENT_DISCONNECTED:
@@ -46,6 +55,26 @@ static void mqtt_event_handler(void *handler_args,
         case MQTT_EVENT_ERROR:
             ESP_LOGE(TAG, "Erreur MQTT");
             break;
+
+        case MQTT_EVENT_DATA:
+        {
+            // ----- extraction propre topic + payload -----
+            char topic[event->topic_len + 1];
+            char payload[event->data_len + 1];
+
+            memcpy(topic, event->topic, event->topic_len);
+            memcpy(payload, event->data, event->data_len);
+
+            topic[event->topic_len] = '\0';
+            payload[event->data_len] = '\0';
+
+            ESP_LOGI(TAG, "MQTT RX [%s] -> %s", topic, payload);
+
+            // ----- hook OTA -----
+            ota_handle_mqtt(topic, payload);
+
+            break;
+        }
 
         default:
             break;
@@ -74,7 +103,7 @@ extern "C" void mqtt_init(void)
     ESP_ERROR_CHECK(
         esp_mqtt_client_register_event(
             s_mqtt_client,
-            static_cast<esp_mqtt_event_id_t>(ESP_EVENT_ANY_ID),
+            (esp_mqtt_event_id_t)ESP_EVENT_ANY_ID,
             mqtt_event_handler,
             nullptr));
 
