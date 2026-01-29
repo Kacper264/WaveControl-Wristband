@@ -24,3 +24,28 @@ const char* MQTT_TOPIC_HEALTH = "xiao/health";
 
 /* Topics domotique */
 const char* MQTT_TOPIC_CLASS = "home/wristband/move";
+
+/* -------------------------------------------------------------------------- */
+/* TASK CONFIG                                                                */
+/* -------------------------------------------------------------------------- */
+
+const uint16_t ACQ_TASK_STACK  = 4096;
+const uint16_t AI_TASK_STACK   = 8192;
+const uint16_t MQTT_TASK_STACK = 2048;
+
+const UBaseType_t ACQ_TASK_PRIO  = 6;
+const UBaseType_t AI_TASK_PRIO   = 5;
+const UBaseType_t MQTT_TASK_PRIO = 4;
+
+/* -------------------------------------------------------------------------- */
+/* MOVES                                                                      */
+/* -------------------------------------------------------------------------- */
+
+const char *MOVE_STR[OUTPUT_SIZE] = {
+    "circle_left",
+    "circle_right",
+    "down",
+    "left",
+    "right",
+    "up"
+};

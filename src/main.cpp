@@ -1,253 +1,149 @@
 #include <cstdio>
-#include <cstring>
 #include <cstdint>
-#include "ia/run_model.h"
+
+#include "imu.h"
+#include "ia.h"
 
 extern "C" {
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
-#include "freertos/event_groups.h"
+
+#include "driver/gpio.h"
 
 #include "nvs_flash.h"
 #include "esp_log.h"
-#include "esp_err.h"
-
-#include "wifi_manager.h"
 #include "mqtt_manager.h"
+#include "wifi_manager.h"
 #include "strings_constants.h"
 }
-//bbb
-/* -------------------------------------------------------------------------- */
-/* CONFIG                                                                     */
-/* -------------------------------------------------------------------------- */
 
-constexpr uint16_t ACQ_TASK_STACK  = 4096;
-constexpr uint16_t AI_TASK_STACK   = 8192;
-constexpr uint16_t MQTT_TASK_STACK = 2048;
+#define TAG_APP "APP"
+#define BUTTON_PIN GPIO_NUM_7   // XIAO ESP32-S3 Sense
 
-constexpr UBaseType_t ACQ_TASK_PRIO  = 6;
-constexpr UBaseType_t AI_TASK_PRIO   = 5;
-constexpr UBaseType_t MQTT_TASK_PRIO = 4;
+/* ================== STRUCT ================== */
 
-static const char *TAG = "APP";
-
-/* -------------------------------------------------------------------------- */
-/* IA PARAMS                                                                  */
-/* -------------------------------------------------------------------------- */
-
-constexpr uint16_t SEQ_LEN   = 100;
-constexpr uint16_t FEATURES = 6;
-constexpr uint16_t INPUT_SIZE  = SEQ_LEN * FEATURES;
-constexpr uint16_t OUTPUT_SIZE = 6;
-
-/* -------------------------------------------------------------------------- */
-/* MOVES                                                                      */
-/* -------------------------------------------------------------------------- */
-
-enum class Move : uint8_t
-{
-    CircleLeft = 0,
-    CircleRight,
-    Down,
-    Left,
-    Right,
-    Up
-};
-
-static constexpr const char *MOVE_STR[OUTPUT_SIZE] = {
-    "circle_left",
-    "circle_right",
-    "down",
-    "left",
-    "right",
-    "up"
-};
-
-/* -------------------------------------------------------------------------- */
-/* TYPES                                                                      */
-/* -------------------------------------------------------------------------- */
-
-struct AcqData
-{
-    float ax, ay, az;
-    float gx, gy, gz;
-};
-
-struct AiResult
-{
-    Move    move;
+struct AiResult {
+    Move move;
     uint8_t confidence;
 };
 
-/* -------------------------------------------------------------------------- */
-/* RTOS                                                                       */
-/* -------------------------------------------------------------------------- */
+/* ================== RTOS ================== */
 
-static QueueHandle_t acq_queue;
 static QueueHandle_t ai_queue;
 
-/* -------------------------------------------------------------------------- */
-/* BUFFERS                                                                    */
-/* -------------------------------------------------------------------------- */
-
-static float imu_buffer[INPUT_SIZE];
-static float output_buffer[OUTPUT_SIZE];
-static uint16_t sample_index = 0;
-
-/* -------------------------------------------------------------------------- */
-/* ACQUISITION TASK                                                           */
-/* -------------------------------------------------------------------------- */
+/* ================== ACQUISITION TASK ================== */
 
 static void acquisition_task(void *arg)
 {
-    (void)arg;
-
-    AcqData data{};
-
-    const TickType_t period = pdMS_TO_TICKS(20);  // 50Hz
+    int last_btn = 1;
+    bool acquiring = false;
 
     while (true)
     {
-        /* --------------------------------------------------
-           👉 Remplace ici par ta lecture IMU réelle
-           -------------------------------------------------- */
+        int btn = gpio_get_level(BUTTON_PIN);
 
-        data.ax = 0.1f;
-        data.ay = 0.2f;
-        data.az = 0.3f;
-        data.gx = 0.01f;
-        data.gy = 0.02f;
-        data.gz = 0.03f;
-
-        xQueueSend(acq_queue, &data, 0);
-
-        vTaskDelay(period);
-    }
-}
-
-/* -------------------------------------------------------------------------- */
-/* AI TASK                                                                    */
-/* -------------------------------------------------------------------------- */
-
-static void ai_task(void *arg)
-{
-    (void)arg;
-
-    AcqData data{};
-    AiResult result{};
-
-    ESP_LOGI(TAG, "AI task started");
-
-    if (!init_model())
-    {
-        ESP_LOGE(TAG, "MODEL INIT FAILED");
-        vTaskDelete(nullptr);
-    }
-
-    while (true)
-    {
-        xQueueReceive(acq_queue, &data, portMAX_DELAY);
-
-        imu_buffer[sample_index++] = data.ax;
-        imu_buffer[sample_index++] = data.ay;
-        imu_buffer[sample_index++] = data.az;
-        imu_buffer[sample_index++] = data.gx;
-        imu_buffer[sample_index++] = data.gy;
-        imu_buffer[sample_index++] = data.gz;
-
-        if (sample_index >= INPUT_SIZE)
-        {
-            sample_index = 0;
-
-            if (run_inference(imu_buffer, output_buffer))
-            {
-                uint8_t max_idx = 0;
-                float max_val = output_buffer[0];
-
-                for (uint8_t i = 1; i < OUTPUT_SIZE; i++)
-                {
-                    if (output_buffer[i] > max_val)
-                    {
-                        max_val = output_buffer[i];
-                        max_idx = i;
-                    }
-                }
-
-                result.move = static_cast<Move>(max_idx);
-                result.confidence = (uint8_t)(max_val * 100.0f);
-
-                ESP_LOGI(TAG, "AI → %s (%.2f)",
-                         MOVE_STR[max_idx], max_val);
-
-                xQueueOverwrite(ai_queue, &result);
-            }
+        // ---- déclenchement sur appui ----
+        if (!acquiring && last_btn == 1 && btn == 0) {
+            ESP_LOGI(TAG_APP, "Acquisition started");
+            acquiring = true;
         }
+        last_btn = btn;
+
+        // ---- idle ----
+        if (!acquiring) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+            continue;
+        }
+
+        // ---- lecture IMU ----
+        float ax, ay, az, gx, gy, gz;
+        imu_read_filtered(&ax, &ay, &az, &gx, &gy, &gz);
+
+        // ---- push IA ----
+        if (ai_push_sample(ax, ay, az, gx, gy, gz)) {
+            ESP_LOGI(TAG_APP, "AI inference finished");
+            acquiring = false;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(20));   // 50 Hz
     }
 }
 
-/* -------------------------------------------------------------------------- */
-/* MQTT TASK                                                                  */
-/* -------------------------------------------------------------------------- */
+/* ================== RESULT TASK ================== */
+
+static void result_task(void *arg)
+{
+    Move m;
+    uint8_t c;
+
+    while (true)
+    {
+        if (ai_get_result(&m, &c))
+        {
+            AiResult r;
+            r.move = m;
+            r.confidence = c;
+            xQueueOverwrite(ai_queue, &r);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
+/* ================== MQTT TASK ================== */
 
 static void mqtt_task(void *arg)
 {
-    (void)arg;
-
-    AiResult result{};
+    AiResult r{};
     char payload[32];
 
     while (true)
     {
-        xQueueReceive(ai_queue, &result, portMAX_DELAY);
+        xQueueReceive(ai_queue, &r, portMAX_DELAY);
 
-        uint8_t idx = static_cast<uint8_t>(result.move);
+        snprintf(payload, sizeof(payload),
+                 "%s", MOVE_STR[(uint8_t)r.move]);
 
-        snprintf(payload, sizeof(payload), "%s", MOVE_STR[idx]);
-
-        esp_mqtt_client_handle_t client = mqtt_get_client();
-        if (client)
-        {
-            ESP_LOGI(TAG, "MQTT → %s", payload);
-
-            esp_mqtt_client_publish(
-                client,
-                MQTT_TOPIC_CLASS,
-                payload,
-                0,
-                2,
-                0
-            );
-        }
+        esp_mqtt_client_publish(
+            mqtt_get_client(),
+            MQTT_TOPIC_CLASS,
+            payload,
+            0, 1, 0
+        );
     }
 }
 
-/* -------------------------------------------------------------------------- */
-/* MAIN                                                                       */
-/* -------------------------------------------------------------------------- */
+/* ================== MAIN ================== */
 
-extern "C" void app_main(void)
+extern "C" void app_main()
 {
-    esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES ||
-        err == ESP_ERR_NVS_NEW_VERSION_FOUND)
-    {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ESP_ERROR_CHECK(nvs_flash_init());
-    }
+    ESP_ERROR_CHECK(nvs_flash_init());
 
     wifi_init_sta();
     mqtt_init();
 
-    acq_queue = xQueueCreate(5, sizeof(AcqData));
-    ai_queue  = xQueueCreate(1, sizeof(AiResult));
+    // ---- IMU ----
+    imu_init_hw();
+    imu_calibrate();
 
-    xTaskCreate(acquisition_task, "acq_task",
-                ACQ_TASK_STACK, nullptr, ACQ_TASK_PRIO, nullptr);
+    // ---- IA ----
+    ai_init();
 
-    xTaskCreate(ai_task, "ai_task",
-                AI_TASK_STACK, nullptr, AI_TASK_PRIO, nullptr);
+    // ---- BUTTON ----
+    gpio_config_t btn{};
+    btn.pin_bit_mask = 1ULL << BUTTON_PIN;
+    btn.mode = GPIO_MODE_INPUT;
+    btn.pull_up_en = GPIO_PULLUP_ENABLE;
+    btn.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    btn.intr_type = GPIO_INTR_DISABLE;
+    gpio_config(&btn);
 
-    xTaskCreate(mqtt_task, "mqtt_task",
-                MQTT_TASK_STACK, nullptr, MQTT_TASK_PRIO, nullptr);
+    // ---- QUEUE ----
+    ai_queue = xQueueCreate(1, sizeof(AiResult));
+
+    // ---- TASKS ----
+    xTaskCreate(acquisition_task, "acq", 4096, nullptr, 5, nullptr);
+    xTaskCreate(result_task,      "res", 4096, nullptr, 6, nullptr);
+    xTaskCreate(mqtt_task,        "mqtt",4096, nullptr, 4, nullptr);
 }
