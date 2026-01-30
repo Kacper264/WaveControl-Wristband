@@ -7,8 +7,8 @@ extern "C" {
 #include "esp_log.h"
 #include "esp_err.h"
 
-#include "wifi_manager.h"
-#include "strings_constants.h"
+#include "net/wifi_manager.h"
+#include "common/strings_constants.h"
 }
 
 /* -------------------------------------------------------------------------- */

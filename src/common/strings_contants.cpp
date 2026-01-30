@@ -1,4 +1,4 @@
-#include "strings_constants.h"
+#include "common/strings_constants.h"
 
 /* -------------------------------------------------------------------------- */
 /* Application                                                                */

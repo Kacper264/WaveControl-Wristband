@@ -1,17 +1,17 @@
 #include <cstring>
 
 extern "C" {
-#include "mqtt_manager.h"
+#include "net/mqtt_manager.h"
 
 #include "esp_log.h"
 #include "esp_err.h"
 #include "esp_idf_version.h"
 #include "mqtt_client.h"
 
-#include "strings_constants.h"
+#include "common/strings_constants.h"
 }
 
-#include "ota.h"   // 👈 ajout OTA
+#include "ota/ota.h"
 
 /* -------------------------------------------------------------------------- */
 

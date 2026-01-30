@@ -1,9 +1,9 @@
 #include <cstdio>
 #include <cstdint>
 
-#include "imu.h"
-#include "ia.h"
-#include "ota.h"
+#include "drivers/imu.h"
+#include "ia/ia.h"
+#include "ota/ota.h"
 
 extern "C" {
 #include "freertos/FreeRTOS.h"
@@ -14,9 +14,9 @@ extern "C" {
 
 #include "nvs_flash.h"
 #include "esp_log.h"
-#include "mqtt_manager.h"
-#include "wifi_manager.h"
-#include "strings_constants.h"
+#include "net/mqtt_manager.h"
+#include "net/wifi_manager.h"
+#include "common/strings_constants.h"
 }
 
 #define TAG_APP "APP"

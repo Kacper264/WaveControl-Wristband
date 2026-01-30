@@ -1,4 +1,4 @@
-#include "ia.h"
+#include "ia/ia.h"
 #include "ia/run_model.h"
 #include "esp_log.h"
 

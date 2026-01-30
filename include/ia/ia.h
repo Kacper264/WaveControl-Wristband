@@ -1,6 +1,6 @@
 #pragma once
 #include <stdint.h>
-#include "strings_constants.h"
+#include "common/strings_constants.h"
 
 #ifdef __cplusplus
 extern "C" {

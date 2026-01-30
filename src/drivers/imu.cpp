@@ -1,4 +1,4 @@
-#include "imu.h"
+#include "drivers/imu.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
