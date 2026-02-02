@@ -1,253 +1,233 @@
 #include <cstdio>
-#include <cstring>
 #include <cstdint>
-#include "ia/run_model.h"
+
+#include "drivers/imu.h"
+#include "ia/ia.h"
+#include "ota/ota.h"
 
 extern "C" {
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
-#include "freertos/event_groups.h"
+
+#include "driver/gpio.h"
 
 #include "nvs_flash.h"
 #include "esp_log.h"
-#include "esp_err.h"
-
-#include "wifi_manager.h"
-#include "mqtt_manager.h"
-#include "strings_constants.h"
+#include "esp_timer.h"          // <-- uptime timestamp
+#include "net/mqtt_manager.h"
+#include "net/wifi_manager.h"
+#include "common/strings_constants.h"
 }
 
-/* -------------------------------------------------------------------------- */
-/* CONFIG                                                                     */
-/* -------------------------------------------------------------------------- */
+#define TAG_APP "APP"
+#define BUTTON_PIN GPIO_NUM_7
 
-constexpr uint16_t ACQ_TASK_STACK  = 4096;
-constexpr uint16_t AI_TASK_STACK   = 8192;
-constexpr uint16_t MQTT_TASK_STACK = 2048;
+// ---- Periods (modifiable) ----
+#define HEARTBEAT_PERIOD_MS       (60 * 1000)        // 1 min
+#define BATTERY_TEST_PERIOD_MS    (5 * 60 * 1000)    // 5 min
 
-constexpr UBaseType_t ACQ_TASK_PRIO  = 6;
-constexpr UBaseType_t AI_TASK_PRIO   = 5;
-constexpr UBaseType_t MQTT_TASK_PRIO = 4;
+// ---- Topics (adapte si besoin) ----
+// Si tu as déjà ces constantes ailleurs, supprime ces #define.
+#ifndef MQTT_TOPIC_HEARTBEAT
+#define MQTT_TOPIC_HEARTBEAT "device/heartbeat"
+#endif
 
-static const char *TAG = "APP";
+/* ================== UTILS ================== */
 
-/* -------------------------------------------------------------------------- */
-/* IA PARAMS                                                                  */
-/* -------------------------------------------------------------------------- */
-
-constexpr uint16_t SEQ_LEN   = 100;
-constexpr uint16_t FEATURES = 6;
-constexpr uint16_t INPUT_SIZE  = SEQ_LEN * FEATURES;
-constexpr uint16_t OUTPUT_SIZE = 6;
-
-/* -------------------------------------------------------------------------- */
-/* MOVES                                                                      */
-/* -------------------------------------------------------------------------- */
-
-enum class Move : uint8_t
+static uint64_t get_uptime_ms()
 {
-    CircleLeft = 0,
-    CircleRight,
-    Down,
-    Left,
-    Right,
-    Up
-};
+    return (uint64_t)(esp_timer_get_time() / 1000ULL); // µs -> ms
+}
 
-static constexpr const char *MOVE_STR[OUTPUT_SIZE] = {
-    "circle_left",
-    "circle_right",
-    "down",
-    "left",
-    "right",
-    "up"
-};
+/* ================== STRUCT ================== */
 
-/* -------------------------------------------------------------------------- */
-/* TYPES                                                                      */
-/* -------------------------------------------------------------------------- */
-
-struct AcqData
-{
-    float ax, ay, az;
-    float gx, gy, gz;
-};
-
-struct AiResult
-{
-    Move    move;
+struct AiResult {
+    Move move;
     uint8_t confidence;
+    uint64_t timestamp_ms; // uptime depuis boot
 };
 
-/* -------------------------------------------------------------------------- */
-/* RTOS                                                                       */
-/* -------------------------------------------------------------------------- */
+/* ================== RTOS ================== */
 
-static QueueHandle_t acq_queue;
 static QueueHandle_t ai_queue;
+static TaskHandle_t acquisition_handle = nullptr;
 
-/* -------------------------------------------------------------------------- */
-/* BUFFERS                                                                    */
-/* -------------------------------------------------------------------------- */
-
-static float imu_buffer[INPUT_SIZE];
-static float output_buffer[OUTPUT_SIZE];
-static uint16_t sample_index = 0;
-
-/* -------------------------------------------------------------------------- */
-/* ACQUISITION TASK                                                           */
-/* -------------------------------------------------------------------------- */
+/* ================== ACQUISITION TASK ================== */
 
 static void acquisition_task(void *arg)
 {
-    (void)arg;
-
-    AcqData data{};
-
-    const TickType_t period = pdMS_TO_TICKS(20);  // 50Hz
+    int last_btn = 1;
+    bool acquiring = false;
 
     while (true)
     {
-        /* --------------------------------------------------
-           👉 Remplace ici par ta lecture IMU réelle
-           -------------------------------------------------- */
-
-        data.ax = 0.1f;
-        data.ay = 0.2f;
-        data.az = 0.3f;
-        data.gx = 0.01f;
-        data.gy = 0.02f;
-        data.gz = 0.03f;
-
-        xQueueSend(acq_queue, &data, 0);
-
-        vTaskDelay(period);
-    }
-}
-
-/* -------------------------------------------------------------------------- */
-/* AI TASK                                                                    */
-/* -------------------------------------------------------------------------- */
-
-static void ai_task(void *arg)
-{
-    (void)arg;
-
-    AcqData data{};
-    AiResult result{};
-
-    ESP_LOGI(TAG, "AI task started");
-
-    if (!init_model())
-    {
-        ESP_LOGE(TAG, "MODEL INIT FAILED");
-        vTaskDelete(nullptr);
-    }
-
-    while (true)
-    {
-        xQueueReceive(acq_queue, &data, portMAX_DELAY);
-
-        imu_buffer[sample_index++] = data.ax;
-        imu_buffer[sample_index++] = data.ay;
-        imu_buffer[sample_index++] = data.az;
-        imu_buffer[sample_index++] = data.gx;
-        imu_buffer[sample_index++] = data.gy;
-        imu_buffer[sample_index++] = data.gz;
-
-        if (sample_index >= INPUT_SIZE)
-        {
-            sample_index = 0;
-
-            if (run_inference(imu_buffer, output_buffer))
-            {
-                uint8_t max_idx = 0;
-                float max_val = output_buffer[0];
-
-                for (uint8_t i = 1; i < OUTPUT_SIZE; i++)
-                {
-                    if (output_buffer[i] > max_val)
-                    {
-                        max_val = output_buffer[i];
-                        max_idx = i;
-                    }
-                }
-
-                result.move = static_cast<Move>(max_idx);
-                result.confidence = (uint8_t)(max_val * 100.0f);
-
-                ESP_LOGI(TAG, "AI → %s (%.2f)",
-                         MOVE_STR[max_idx], max_val);
-
-                xQueueOverwrite(ai_queue, &result);
-            }
+        // ---- Trigger bouton ----
+        int btn = gpio_get_level(BUTTON_PIN);
+        if (!acquiring && last_btn == 1 && btn == 0) {
+            ESP_LOGI(TAG_APP, "Acquisition started (button)");
+            acquiring = true;
         }
+        last_btn = btn;
+
+        // ---- Trigger périodique (notification FreeRTOS) ----
+        // Non bloquant : si une notif est présente, on démarre une acquisition.
+        uint32_t notified = ulTaskNotifyTake(pdTRUE, 0);
+        if (!acquiring && notified > 0) {
+            ESP_LOGI(TAG_APP, "Acquisition started (battery test)");
+            acquiring = true;
+        }
+
+        if (!acquiring) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+            continue;
+        }
+
+        float ax, ay, az, gx, gy, gz;
+        imu_read_filtered(&ax, &ay, &az, &gx, &gy, &gz);
+
+        if (ai_push_sample(ax, ay, az, gx, gy, gz)) {
+            ESP_LOGI(TAG_APP, "AI inference finished");
+            acquiring = false;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(20));
     }
 }
 
-/* -------------------------------------------------------------------------- */
-/* MQTT TASK                                                                  */
-/* -------------------------------------------------------------------------- */
+/* ================== RESULT TASK ================== */
+
+static void result_task(void *arg)
+{
+    Move m;
+    uint8_t c;
+
+    while (true)
+    {
+        if (ai_get_result(&m, &c))
+        {
+            AiResult r{
+                m,
+                c,
+                get_uptime_ms()
+            };
+            xQueueOverwrite(ai_queue, &r);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
+/* ================== MQTT TASK ================== */
 
 static void mqtt_task(void *arg)
 {
-    (void)arg;
-
-    AiResult result{};
-    char payload[32];
+    AiResult r{};
+    char payload[160];
 
     while (true)
     {
-        xQueueReceive(ai_queue, &result, portMAX_DELAY);
+        xQueueReceive(ai_queue, &r, portMAX_DELAY);
 
-        uint8_t idx = static_cast<uint8_t>(result.move);
+        // JSON avec timestamp (uptime) pour tracer la durée de vie batterie
+        snprintf(payload, sizeof(payload),
+            "{"
+              "\"move\":\"%s\","
+              "\"confidence\":%u,"
+              "\"uptime_ms\":%llu"
+            "}",
+            MOVE_STR[(uint8_t)r.move],
+            r.confidence,
+            (unsigned long long)r.timestamp_ms
+        );
 
-        snprintf(payload, sizeof(payload), "%s", MOVE_STR[idx]);
-
-        esp_mqtt_client_handle_t client = mqtt_get_client();
-        if (client)
-        {
-            ESP_LOGI(TAG, "MQTT → %s", payload);
-
-            esp_mqtt_client_publish(
-                client,
-                MQTT_TOPIC_CLASS,
-                payload,
-                0,
-                2,
-                0
-            );
-        }
+        esp_mqtt_client_publish(
+            mqtt_get_client(),
+            MQTT_TOPIC_CLASS,
+            payload,
+            0, 1, 0
+        );
     }
 }
 
-/* -------------------------------------------------------------------------- */
-/* MAIN                                                                       */
-/* -------------------------------------------------------------------------- */
+/* ================== HEARTBEAT TASK ================== */
 
-extern "C" void app_main(void)
+static void heartbeat_task(void *arg)
 {
-    esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES ||
-        err == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    char payload[128];
+
+    while (true)
     {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ESP_ERROR_CHECK(nvs_flash_init());
+        // Uptime dans la trame de vie aussi (pratique côté serveur)
+        snprintf(payload, sizeof(payload),
+                 "{"
+                   "\"alive\":true,"
+                   "\"uptime_ms\":%llu"
+                 "}",
+                 (unsigned long long)get_uptime_ms());
+
+        esp_mqtt_client_publish(
+            mqtt_get_client(),
+            MQTT_TOPIC_HEARTBEAT,
+            payload,
+            0, 1, 0
+        );
+
+        vTaskDelay(pdMS_TO_TICKS(HEARTBEAT_PERIOD_MS));
     }
+}
+
+/* ================== BATTERY AI TEST TASK ================== */
+
+static void battery_ai_task(void *arg)
+{
+    while (true)
+    {
+        // Déclenche une acquisition/inférence IA (sans bouton).
+        // Le timestamp sera ajouté au moment où le résultat IA est prêt (result_task),
+        // puis publié immédiatement par mqtt_task.
+        if (acquisition_handle != nullptr) {
+            xTaskNotifyGive(acquisition_handle);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(BATTERY_TEST_PERIOD_MS));
+    }
+}
+
+/* ================== MAIN ================== */
+
+extern "C" void app_main()
+{
+    ESP_ERROR_CHECK(nvs_flash_init());
 
     wifi_init_sta();
     mqtt_init();
 
-    acq_queue = xQueueCreate(5, sizeof(AcqData));
-    ai_queue  = xQueueCreate(1, sizeof(AiResult));
+    // ---- IMU ----
+    imu_init_hw();
+    imu_calibrate();
 
-    xTaskCreate(acquisition_task, "acq_task",
-                ACQ_TASK_STACK, nullptr, ACQ_TASK_PRIO, nullptr);
+    // ---- IA ----
+    ai_init();
 
-    xTaskCreate(ai_task, "ai_task",
-                AI_TASK_STACK, nullptr, AI_TASK_PRIO, nullptr);
+    // ---- BUTTON ----
+    gpio_config_t btn{};
+    btn.pin_bit_mask = 1ULL << BUTTON_PIN;
+    btn.mode = GPIO_MODE_INPUT;
+    btn.pull_up_en = GPIO_PULLUP_ENABLE;
+    btn.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    btn.intr_type = GPIO_INTR_DISABLE;
+    gpio_config(&btn);
 
-    xTaskCreate(mqtt_task, "mqtt_task",
-                MQTT_TASK_STACK, nullptr, MQTT_TASK_PRIO, nullptr);
+    // ---- QUEUE ----
+    ai_queue = xQueueCreate(1, sizeof(AiResult));
+
+    // ---- TASKS ----
+    xTaskCreate(acquisition_task, "acq",  4096, nullptr, 5, &acquisition_handle);
+    xTaskCreate(result_task,      "res",  4096, nullptr, 6, nullptr);
+    xTaskCreate(mqtt_task,        "mqtt", 4096, nullptr, 4, nullptr);
+
+    // Nouvelles tâches
+    xTaskCreate(heartbeat_task,   "hb",   4096, nullptr, 3, nullptr);
+    xTaskCreate(battery_ai_task,  "batt", 4096, nullptr, 3, nullptr);
 }
