@@ -1,8 +1,8 @@
-name: Build & Release ESP32 Firmware
+name: Build & Release ESP32 Firmware (main)
 
 on:
   push:
-    branches: [ pre-prod ]
+    branches: [ main ]
     paths:
       - "src/**"
       - "include/**"
@@ -13,13 +13,12 @@ on:
       - ".github/workflows/**"
 
 concurrency:
-  group: build-release-${{ github.ref }}
+  group: build-release-main-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository (with submodules)
         uses: actions/checkout@v4
@@ -50,10 +49,6 @@ jobs:
       - name: Read version from file
         id: version
         run: |
-          if [ ! -f version.txt ]; then
-            echo "version.txt manquant"
-            exit 1
-          fi
           VERSION=$(tr -d ' \n' < version.txt)
           if [ -z "$VERSION" ]; then
             echo "Version vide"
@@ -72,7 +67,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.version }}
+          tag_name: v${{ steps.version.outputs.version }}
           name: "ESP32 Firmware ${{ steps.version.outputs.version }}"
           files: firmware_${{ steps.version.outputs.version }}.bin
         env:
