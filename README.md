@@ -17,9 +17,6 @@ This project is designed for:
 - Assistive technologies
 - Embedded AI / TinyML applications
 
-📄 Full project specification:  
-`docs/specs/cahier_des_charges.pdf`
-
 ---
 
 ## 🧠 System Architecture
@@ -32,7 +29,7 @@ The system is composed of three main components:
 - Gesture recognition (TinyML or rule-based)
 
 ### 2. Base Station
-- ESP32 or Raspberry Pi
+- Raspberry Pi with Home Assistant
 - MQTT broker / Wi-Fi access point
 - IR blaster for legacy devices
 
