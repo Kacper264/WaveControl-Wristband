@@ -86,6 +86,7 @@ The system is composed of three main components:
 pio run
 pio run -t upload
 pio device monitor
+```
 
 ## 📡 Communication (MQTT)
 
@@ -94,7 +95,6 @@ pio device monitor
 wavecontrol/gesture
 wavecontrol/device/control
 wavecontrol/status
-
 
 ---
 
@@ -129,3 +129,4 @@ Firmware can be updated **over-the-air via Wi-Fi**.
 Run tests:
 ```bash
 pio test
+```
