@@ -89,9 +89,9 @@ pio device monitor
 
 ### Example topics
 
-wavecontrol/gesture
-wavecontrol/device/control
-wavecontrol/status
+wavecontrol/gesture  
+wavecontrol/device/control  
+wavecontrol/status  
 
 ---
 
