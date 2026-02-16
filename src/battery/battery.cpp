@@ -1,28 +1,9 @@
 #include "battery/battery.h"
-
+#include "common/strings_constants.h"
 extern "C" {
 #include "driver/adc.h"
 #include "esp_adc_cal.h"
 }
-
-#ifndef BAT_ADC_CHANNEL
-#define BAT_ADC_CHANNEL      ADC1_CHANNEL_0
-#endif
-#ifndef BAT_ADC_ATTEN
-#define BAT_ADC_ATTEN        ADC_ATTEN_DB_11
-#endif
-#ifndef BAT_ADC_WIDTH
-#define BAT_ADC_WIDTH        ADC_WIDTH_BIT_12
-#endif
-#ifndef BAT_DIVIDER_RATIO
-#define BAT_DIVIDER_RATIO    2.0f
-#endif
-#ifndef VBAT_MIN
-#define VBAT_MIN             3.30f
-#endif
-#ifndef VBAT_MAX
-#define VBAT_MAX             4.20f
-#endif
 
 static esp_adc_cal_characteristics_t adc_chars;
 
@@ -56,4 +37,34 @@ uint8_t battery_read_percent(void)
     float pct = (v - VBAT_MIN) * 100.0f / (VBAT_MAX - VBAT_MIN);
     pct = clampf(pct, 0.0f, 100.0f);
     return (uint8_t)(pct + 0.5f);
+}
+
+bool is_on_sector(float vbat)
+{
+    static float prev_vbat = 0.0f;
+    static bool initialized = false;
+    static bool last_state = false;
+
+    const float threshold = 0.01f; // 10 mV
+
+    if (!initialized)
+    {
+        prev_vbat = vbat;
+        initialized = true;
+        return false;
+    }
+
+    float delta = vbat - prev_vbat;
+    prev_vbat = vbat;
+
+    if (delta > threshold)
+    {
+        last_state = true;
+    }
+    else if (delta < -threshold)
+    {
+        last_state = false;
+    }
+
+    return last_state;
 }

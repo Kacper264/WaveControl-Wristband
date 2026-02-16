@@ -30,6 +30,11 @@ extern "C" {
 extern const char *TAG_APP;
 
 /* -------------------------------------------------------------------------- */
+/* GPIO                                                                       */
+/* -------------------------------------------------------------------------- */
+extern const gpio_num_t BUTTON_PIN;
+
+/* -------------------------------------------------------------------------- */
 /* Wi-Fi                                                                      */
 /* -------------------------------------------------------------------------- */
 
@@ -45,10 +50,6 @@ extern const char *MQTT_TOPIC_CLASS;
 
 // Ton topic existant
 extern const char *MQTT_TOPIC_HEALTH;
-
-// Option recommandé (si tu veux séparer santé vs batterie)
-// Si tu ne le veux pas, on peut réutiliser MQTT_TOPIC_HEALTH.
-extern const char *MQTT_TOPIC_BATTERY;
 
 /* -------------------------------------------------------------------------- */
 /* TASK CONFIG                                                                */
@@ -71,6 +72,11 @@ extern const gpio_num_t BUTTON_PIN;
 
 // Temps avant deep sleep après publish MQTT du résultat IA
 extern const uint32_t SLEEP_AFTER_IA_MS;
+
+// ========================
+// Timing (ms)
+// ========================
+extern const uint32_t BATTERY_REPORT_PERIOD_MS;
 
 /* -------------------------------------------------------------------------- */
 /* BATTERY CONFIG                                                             */
@@ -117,3 +123,9 @@ extern const char *MOVE_STR[];
 #ifdef __cplusplus
 }
 #endif
+
+// ========================
+// MQTT
+// ========================
+
+

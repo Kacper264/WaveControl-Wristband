@@ -22,27 +22,16 @@ extern "C" {
 
 #define TAG_APP "APP"
 
-#ifndef BUTTON_PIN
-#define BUTTON_PIN GPIO_NUM_7
-#endif
-
-#ifndef MQTT_TOPIC_HEARTBEAT
-#define MQTT_TOPIC_HEARTBEAT "device/heartbeat"
-#endif
-
-#ifndef BATTERY_REPORT_PERIOD_MS
-#define BATTERY_REPORT_PERIOD_MS (60 * 1000)
-#endif
-
-// 5 minutes après publish MQTT IA
-#ifndef SLEEP_AFTER_IA_MS
-#define SLEEP_AFTER_IA_MS (5 * 60 * 1000)
-#endif
 
 struct AiResult {
     Move move;
     uint8_t confidence;
 };
+
+typedef struct {
+    AiResult results[OUTPUT_SIZE];
+    uint8_t count;
+} AiBatch;
 
 static QueueHandle_t ai_queue;
 static TaskHandle_t acquisition_handle = nullptr;
@@ -79,7 +68,6 @@ static void acquisition_task(void *arg)
         if (ai_push_sample(ax, ay, az, gx, gy, gz)) {
             ESP_LOGI(TAG_APP, "AI inference finished");
             acquiring = false;
-            // le timer de sleep est armé après publication MQTT du résultat IA (mqtt_task)
         }
 
         vTaskDelay(pdMS_TO_TICKS(20));
@@ -106,22 +94,31 @@ static void result_task(void *arg)
 static void mqtt_task(void *arg)
 {
     (void)arg;
-    AiResult r{};
+    AiBatch batch;
     char payload[160];
 
     while (true)
     {
-        xQueueReceive(ai_queue, &r, portMAX_DELAY);
+        xQueueReceive(ai_queue, &batch, portMAX_DELAY);
 
+        // Chercher l'index du max
+        uint8_t best_idx = 0;
+
+        for (uint8_t i = 1; i < OUTPUT_SIZE; i++)
+        {
+            if (batch.results[i].confidence > batch.results[best_idx].confidence)
+            {
+                best_idx = i;
+            }
+        }
+
+        // Construire le payload : seulement le mouvement
         snprintf(payload, sizeof(payload),
-            "{"
-              "\"move\":\"%s\","
-              "\"confidence\":%u"
-            "}",
-            MOVE_STR[(uint8_t)r.move],
-            r.confidence
+            "%s",
+            MOVE_STR[best_idx]
         );
 
+        // Publish MQTT
         esp_mqtt_client_publish(
             mqtt_get_client(),
             MQTT_TOPIC_CLASS,
@@ -129,10 +126,12 @@ static void mqtt_task(void *arg)
             0, 1, 0
         );
 
-        // Arme le deep sleep dans 5 minutes
+        // Deep sleep
         power_manager_arm_sleep();
     }
 }
+
+
 
 static void battery_report_task(void *arg)
 {
@@ -144,19 +143,20 @@ static void battery_report_task(void *arg)
         float vbat = battery_read_voltage();
         uint8_t pct = battery_read_percent();
 
+        bool sect = is_on_sector(vbat);
+
         snprintf(payload, sizeof(payload),
                  "{"
-                   "\"battery\":{"
-                     "\"voltage\":%.3f,"
-                     "\"percent\":%u"
-                   "}"
+                   "\"bat_lvl\":%u,"
+                   "\"sect\":%s"
                  "}",
-                 vbat,
-                 pct);
+                 pct,
+                 sect ? "true" : "false"
+        );
 
         esp_mqtt_client_publish(
             mqtt_get_client(),
-            MQTT_TOPIC_HEARTBEAT,
+            MQTT_TOPIC_HEALTH,
             payload,
             0, 1, 0
         );
@@ -164,6 +164,7 @@ static void battery_report_task(void *arg)
         vTaskDelay(pdMS_TO_TICKS(BATTERY_REPORT_PERIOD_MS));
     }
 }
+
 
 void app_tasks_start(void)
 {

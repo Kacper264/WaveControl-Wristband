@@ -20,10 +20,7 @@ const char* WIFI_PASS = "......";
 const char* MQTT_BROKER_URI = "mqtt://192.168.1.164:1883";
 
 /* Topics généraux */
-const char* MQTT_TOPIC_HEALTH = "xiao/health";
-
-/* Topic batterie (optionnel mais recommandé) */
-const char* MQTT_TOPIC_BATTERY = "xiao/battery";
+const char* MQTT_TOPIC_HEALTH = "home/wristband/battery";
 
 /* Topics domotique */
 const char* MQTT_TOPIC_CLASS = "home/wristband/move";
@@ -57,15 +54,15 @@ const uint32_t SLEEP_AFTER_IA_MS = 5 * 60 * 1000;
 // Envoi niveau batterie toutes les 60 secondes
 const uint32_t BATTERY_REPORT_PERIOD_MS = 60 * 1000;
 
-// ⚠️ À ADAPTER : channel ADC réellement connecté à la mesure batterie
+// Channel ADC réellement connecté à la mesure batterie
 const adc1_channel_t BAT_ADC_CHANNEL = ADC1_CHANNEL_0;
 
 // Atténuation / résolution ADC
 const adc_atten_t BAT_ADC_ATTEN = ADC_ATTEN_DB_11;
 const adc_bits_width_t BAT_ADC_WIDTH = ADC_WIDTH_BIT_12;
 
-// ⚠️ À ADAPTER : ratio du pont diviseur (si pas de diviseur: 1.0f)
-const float BAT_DIVIDER_RATIO = 2.0f;
+// Ratio du pont diviseur
+const float BAT_DIVIDER_RATIO = 0.5f;
 
 // Plage LiPo approximative (pour %)
 const float VBAT_MIN = 3.30f;
