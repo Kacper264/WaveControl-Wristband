@@ -4,6 +4,8 @@
 #include <cstdint>
 #include "freertos/FreeRTOS.h"
 
+#include "driver/gpio.h"
+#include "driver/adc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,7 +42,13 @@ extern const char *WIFI_PASS;
 
 extern const char *MQTT_BROKER_URI;
 extern const char *MQTT_TOPIC_CLASS;
+
+// Ton topic existant
 extern const char *MQTT_TOPIC_HEALTH;
+
+// Option recommandé (si tu veux séparer santé vs batterie)
+// Si tu ne le veux pas, on peut réutiliser MQTT_TOPIC_HEALTH.
+extern const char *MQTT_TOPIC_BATTERY;
 
 /* -------------------------------------------------------------------------- */
 /* TASK CONFIG                                                                */
@@ -53,6 +61,33 @@ extern const uint16_t MQTT_TASK_STACK;
 extern const UBaseType_t ACQ_TASK_PRIO;
 extern const UBaseType_t AI_TASK_PRIO;
 extern const UBaseType_t MQTT_TASK_PRIO;
+
+/* -------------------------------------------------------------------------- */
+/* POWER / SLEEP CONFIG                                                       */
+/* -------------------------------------------------------------------------- */
+
+// Bouton existant dans ton code
+extern const gpio_num_t BUTTON_PIN;
+
+// Temps avant deep sleep après publish MQTT du résultat IA
+extern const uint32_t SLEEP_AFTER_IA_MS;
+
+/* -------------------------------------------------------------------------- */
+/* BATTERY CONFIG                                                             */
+/* -------------------------------------------------------------------------- */
+
+// Période d’envoi du niveau batterie (télémétrie)
+extern const uint32_t BATTERY_REPORT_PERIOD_MS;
+
+// ADC batterie
+extern const adc1_channel_t  BAT_ADC_CHANNEL;
+extern const adc_atten_t     BAT_ADC_ATTEN;
+extern const adc_bits_width_t BAT_ADC_WIDTH;
+
+// Diviseur & conversion
+extern const float BAT_DIVIDER_RATIO;
+extern const float VBAT_MIN;
+extern const float VBAT_MAX;
 
 /* -------------------------------------------------------------------------- */
 /* IA PARAMS                                                                  */
