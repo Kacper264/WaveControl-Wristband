@@ -67,7 +67,7 @@ jobs:
       - name: Create GitHub Pre-Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.version }}-pre-prod
+          tag_name: ${{ steps.version.outputs.version }}-pre-prod
           name: "ESP32 Firmware ${{ steps.version.outputs.version }} (pre-prod)"
           prerelease: true
           files: firmware_${{ steps.version.outputs.version }}-pre-prod.bin
