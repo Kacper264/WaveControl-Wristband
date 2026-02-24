@@ -12,12 +12,12 @@
 /* ===== Hardware ===== */
 
 #define I2C_PORT I2C_NUM_0
-#define SDA_PIN  5
-#define SCL_PIN  6
+#define SDA_PIN  4
+#define SCL_PIN  5
 #define I2C_FREQ 400000   // comme ton ancien code (tu peux mettre 100000 si besoin)
 
 /* I2C addresses (7-bit) */
-#define LSM6_ADDR    0x6B
+#define LSM6_ADDR    0x6A
 #define LIS3MDL_ADDR 0x1E
 
 /* ===== Registers ===== */

@@ -42,10 +42,10 @@ const UBaseType_t MQTT_TASK_PRIO = 4;
 /* -------------------------------------------------------------------------- */
 
 // Bouton utilisé pour démarrer acquisition + réveil deep sleep
-const gpio_num_t BUTTON_PIN = GPIO_NUM_7;
+const gpio_num_t BUTTON_PIN = GPIO_NUM_2;
 
 // 5 minutes après publication MQTT du résultat IA -> deep sleep
-const uint32_t SLEEP_AFTER_IA_MS = 5 * 60 * 1000;
+const uint32_t SLEEP_AFTER_IA_MS = 50 * 60 * 1000;
 
 /* -------------------------------------------------------------------------- */
 /* BATTERY CONFIG                                                             */
