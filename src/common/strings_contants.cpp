@@ -10,17 +10,17 @@ const char* TAG_APP = "WaveControl";
 /* Wi-Fi                                                                      */
 /* -------------------------------------------------------------------------- */
 
-const char* WIFI_SSID = "......";
-const char* WIFI_PASS = "......";
+const char* WIFI_SSID = "filrougestation";
+const char* WIFI_PASS = "filrougestation";
 
 /* -------------------------------------------------------------------------- */
 /* MQTT                                                                       */
 /* -------------------------------------------------------------------------- */
 
-const char* MQTT_BROKER_URI = "mqtt://192.168.1.164:1883";
+const char* MQTT_BROKER_URI = "mqtt://192.168.50.27:1883";
 
 /* Topics généraux */
-const char* MQTT_TOPIC_HEALTH = "home/wristband/battery";
+const char* MQTT_TOPIC_HEALTH = "home/wristband/power";
 
 /* Topics domotique */
 const char* MQTT_TOPIC_CLASS = "home/wristband/move";
@@ -52,7 +52,7 @@ const uint32_t SLEEP_AFTER_IA_MS = 5 * 60 * 1000;
 /* -------------------------------------------------------------------------- */
 
 // Envoi niveau batterie toutes les 60 secondes
-const uint32_t BATTERY_REPORT_PERIOD_MS = 60 * 1000;
+const uint32_t BATTERY_REPORT_PERIOD_MS = 15 * 1000;
 
 // Channel ADC réellement connecté à la mesure batterie
 const adc1_channel_t BAT_ADC_CHANNEL = ADC1_CHANNEL_0;
@@ -62,7 +62,7 @@ const adc_atten_t BAT_ADC_ATTEN = ADC_ATTEN_DB_11;
 const adc_bits_width_t BAT_ADC_WIDTH = ADC_WIDTH_BIT_12;
 
 // Ratio du pont diviseur
-const float BAT_DIVIDER_RATIO = 0.5f;
+const float BAT_DIVIDER_RATIO = 2.0f;
 
 // Plage LiPo approximative (pour %)
 const float VBAT_MIN = 3.30f;

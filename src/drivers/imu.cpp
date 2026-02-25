@@ -11,9 +11,9 @@
 /* ===== Hardware ===== */
 
 #define I2C_PORT I2C_NUM_0
-#define SDA_PIN 5
-#define SCL_PIN 6
-#define I2C_FREQ 400000
+#define SDA_PIN 4
+#define SCL_PIN 5
+#define I2C_FREQ 100000
 
 #define LSM6_ADDR 0x6A
 

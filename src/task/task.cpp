@@ -169,7 +169,7 @@ static void battery_report_task(void *arg)
 void app_tasks_start(void)
 {
     ai_queue = xQueueCreate(1, sizeof(AiResult));
-
+    ESP_LOGI(TAG_APP, "AI result queue created");
     xTaskCreate(acquisition_task,   "acq",  4096, nullptr, 5, &acquisition_handle);
     xTaskCreate(result_task,        "res",  4096, nullptr, 6, nullptr);
     xTaskCreate(mqtt_task,          "mqtt", 4096, nullptr, 4, nullptr);

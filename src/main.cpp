@@ -23,8 +23,10 @@ extern "C" void app_main()
     wifi_init_sta();
     mqtt_init();
 
+    ESP_LOGI(TAG_APP, "I2C IMU starting...");
     imu_init_hw();
     imu_calibrate();
+    ESP_LOGI(TAG_APP, "I2C IMU initialized and calibrated");
     ai_init();
 
     gpio_config_t btn{};

@@ -19,6 +19,9 @@ static const char *TAG = "mqtt";
 
 static esp_mqtt_client_handle_t s_mqtt_client = nullptr;
 
+#define MQTT_USERNAME "fil_rouge"
+#define MQTT_PASSWORD "lolipop"
+
 /* -------------------------------------------------------------------------- */
 
 static void mqtt_event_handler(void *handler_args,
@@ -86,11 +89,15 @@ static void mqtt_event_handler(void *handler_args,
 extern "C" void mqtt_init(void)
 {
     esp_mqtt_client_config_t mqtt_cfg{};
-
+    
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
     mqtt_cfg.broker.address.uri = MQTT_BROKER_URI;
+    mqtt_cfg.credentials.username = MQTT_USERNAME;
+    mqtt_cfg.credentials.authentication.password = MQTT_PASSWORD;
 #else
     mqtt_cfg.uri = MQTT_BROKER_URI;
+    mqtt_cfg.username = MQTT_USERNAME;
+    mqtt_cfg.password = MQTT_PASSWORD;
 #endif
 
     s_mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
@@ -109,7 +116,7 @@ extern "C" void mqtt_init(void)
 
     ESP_ERROR_CHECK(esp_mqtt_client_start(s_mqtt_client));
 
-    ESP_LOGI(TAG, "Client MQTT démarré");
+    ESP_LOGI(TAG, "Client MQTT démarré (auth activée)");
 }
 
 /* -------------------------------------------------------------------------- */
