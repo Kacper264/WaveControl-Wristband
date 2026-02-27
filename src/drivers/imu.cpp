@@ -72,6 +72,9 @@ static void imu_read_raw(
 
     *gx = gx_r; *gy = gy_r; *gz = gz_r;
     *ax = ax_r; *ay = ay_r; *az = az_r;
+        // Affichage des valeurs
+    printf("Gyro:  gx=%d gy=%d gz=%d\r\n", gx_r, gy_r, gz_r);
+    printf("Accel: ax=%d ay=%d az=%d\r\n", ax_r, ay_r, az_r);
 }
 
 /* ===== Public API ===== */

@@ -20,8 +20,8 @@ extern "C" {
 #include "battery/battery.h"
 #include "power/power.h"
 
-#define TAG_APP "APP"
 
+#define TAG_APP "APP"
 
 struct AiResult {
     Move move;
@@ -144,7 +144,6 @@ static void battery_report_task(void *arg)
         uint8_t pct = battery_read_percent();
 
         bool sect = is_on_sector(vbat);
-
         snprintf(payload, sizeof(payload),
                  "{"
                    "\"bat_lvl\":%u,"
