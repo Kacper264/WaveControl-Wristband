@@ -3,69 +3,10 @@
 extern "C" {
 #include "driver/adc.h"
 #include "esp_adc_cal.h"
-#include "led_strip.h"
 }
 
 static esp_adc_cal_characteristics_t adc_chars;
 
-
-#define LED_GPIO   7   // ⚠️ adapte
-#define LED_COUNT  1
-
-static led_strip_handle_t led_strip = NULL;
-
-// Init LED (appelée une seule fois)
-void led_init(void)
-{
-    if (led_strip != NULL)
-        return;
-
-    led_strip_config_t strip_config = {
-        .strip_gpio_num = LED_GPIO,
-        .max_leds = LED_COUNT,
-        .led_model = LED_MODEL_WS2812,
-        .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB,
-    };
-
-    led_strip_rmt_config_t rmt_config = {
-        .clk_src = RMT_CLK_SRC_DEFAULT,
-        .resolution_hz = 10 * 1000 * 1000,
-        .mem_block_symbols = 64,
-        .flags = {
-            .with_dma = false,
-        },
-    };
-
-    ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
-}
-
-// Changement de couleur séquentiel
-void led_next_color(void)
-{
-    static uint8_t state = 0;
-
-    if (led_strip == NULL)
-        return;
-
-    switch (state)
-    {
-        case 0: // Bleu
-            led_strip_set_pixel(led_strip, 0, 0, 0, 255);
-            break;
-
-        case 1: // Vert
-            led_strip_set_pixel(led_strip, 0, 0, 255, 0);
-            break;
-
-        case 2: // Rouge
-            led_strip_set_pixel(led_strip, 0, 255, 0, 0);
-            break;
-    }
-
-    led_strip_refresh(led_strip);
-
-    state = (state + 1) % 3;
-}
 
 static float clampf(float v, float lo, float hi)
 {

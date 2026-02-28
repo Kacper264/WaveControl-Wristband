@@ -5,24 +5,28 @@
 
 #include "driver/i2c.h"
 #include "esp_log.h"
+#include <cstdio>
+#include <cstdint>
 
 #define TAG_IMU "IMU"
 
 /* ===== Hardware ===== */
 
 #define I2C_PORT I2C_NUM_0
-#define SDA_PIN 4
-#define SCL_PIN 5
-#define I2C_FREQ 100000
+#define SDA_PIN 5
+#define SCL_PIN 6
+#define I2C_FREQ 400000
 
-#define LSM6_ADDR 0x6A
+#define LSM6_ADDR 0x6B
 
 /* ===== Registers ===== */
 
-#define REG_CTRL1_XL  0x10
-#define REG_CTRL2_G   0x11
-#define REG_OUTX_L_G  0x22
+#define REG_CTRL1_XL   0x10
+#define REG_CTRL2_G    0x11
+#define REG_CTRL3_C    0x12
 
+#define REG_OUTX_L_G   0x22   // gyro start (then TEMP, then ACC)
+#define REG_OUTX_L_A   0x28
 /* ===== Filter ===== */
 
 static const float alpha_acc  = 0.2f;
@@ -55,29 +59,16 @@ static esp_err_t i2c_read(uint8_t reg, uint8_t *buf, size_t len)
 
 /* ===== Raw read ===== */
 
-static void imu_read_raw(
-    float *ax, float *ay, float *az,
-    float *gx, float *gy, float *gz)
+static inline int16_t u8_to_i16(const uint8_t *p)
 {
-    uint8_t buf[12];
-    i2c_read(REG_OUTX_L_G, buf, 12);
-
-    int16_t gx_r = buf[1]<<8 | buf[0];
-    int16_t gy_r = buf[3]<<8 | buf[2];
-    int16_t gz_r = buf[5]<<8 | buf[4];
-
-    int16_t ax_r = buf[7]<<8 | buf[6];
-    int16_t ay_r = buf[9]<<8 | buf[8];
-    int16_t az_r = buf[11]<<8 | buf[10];
-
-    *gx = gx_r; *gy = gy_r; *gz = gz_r;
-    *ax = ax_r; *ay = ay_r; *az = az_r;
+    return (int16_t)((p[1] << 8) | p[0]);
 }
 
 /* ===== Public API ===== */
 
 void imu_init_hw()
-{
+{   
+    ESP_LOGI(TAG_IMU, "IMU initialization...");
     i2c_config_t conf{};
     conf.mode = I2C_MODE_MASTER;
     conf.sda_io_num = SDA_PIN;
@@ -89,6 +80,10 @@ void imu_init_hw()
     i2c_param_config(I2C_PORT, &conf);
     i2c_driver_install(I2C_PORT, conf.mode, 0, 0, 0);
 
+    // IMPORTANT : auto-increment des registres (IF_INC=1)
+    i2c_write(REG_CTRL3_C, 0x04);
+
+    // Ta config d'origine (ODR/FS). (Tu peux mettre 0x40 pour 104Hz si tu veux)
     i2c_write(REG_CTRL1_XL, 0x60);
     i2c_write(REG_CTRL2_G,  0x60);
 
@@ -97,6 +92,7 @@ void imu_init_hw()
 
 void imu_calibrate()
 {
+    
     const int N = 500;
 
     ax_off = ay_off = az_off = 0;
@@ -124,29 +120,24 @@ void imu_calibrate()
     ESP_LOGI(TAG_IMU, "Calibration done");
 }
 
-void imu_read_filtered(
+void imu_read_raw(
     float *ax, float *ay, float *az,
     float *gx, float *gy, float *gz)
 {
-    float rax, ray, raz, rgx, rgy, rgz;
+    uint8_t gbuf[6];
+    uint8_t abuf[6];
 
-    imu_read_raw(&rax,&ray,&raz,&rgx,&rgy,&rgz);
+    i2c_read(REG_OUTX_L_G, gbuf, 6);
+    i2c_read(REG_OUTX_L_A, abuf, 6);
 
-    rax -= ax_off; ray -= ay_off; raz -= az_off;
-    rgx -= gx_off; rgy -= gy_off; rgz -= gz_off;
+    int16_t gx_r = u8_to_i16(&gbuf[0]);
+    int16_t gy_r = u8_to_i16(&gbuf[2]);
+    int16_t gz_r = u8_to_i16(&gbuf[4]);
 
-    ax_f = alpha_acc  * rax + (1 - alpha_acc)  * ax_f;
-    ay_f = alpha_acc  * ray + (1 - alpha_acc)  * ay_f;
-    az_f = alpha_acc  * raz + (1 - alpha_acc)  * az_f;
+    int16_t ax_r = u8_to_i16(&abuf[0]);
+    int16_t ay_r = u8_to_i16(&abuf[2]);
+    int16_t az_r = u8_to_i16(&abuf[4]);
 
-    gx_f = alpha_gyro * rgx + (1 - alpha_gyro) * gx_f;
-    gy_f = alpha_gyro * rgy + (1 - alpha_gyro) * gy_f;
-    gz_f = alpha_gyro * rgz + (1 - alpha_gyro) * gz_f;
-
-    *ax = ax_f;
-    *ay = ay_f;
-    *az = az_f;
-    *gx = gx_f;
-    *gy = gy_f;
-    *gz = gz_f;
+    *gx = (float)gx_r; *gy = (float)gy_r; *gz = (float)gz_r;
+    *ax = (float)ax_r; *ay = (float)ay_r; *az = (float)az_r;
 }
