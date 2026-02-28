@@ -68,9 +68,6 @@ static void acquisition_task(void *arg)
         float ax, ay, az, gx, gy, gz;
         imu_read_raw(&ax, &ay, &az, &gx, &gy, &gz);
 
-        // 👉 PRINT DES DONNÉES ENVOYÉES À L'IA
-        // printf("AI INPUT -> ACC: %.2f %.2f %.2f | GYRO: %.2f %.2f %.2f\r\n",
-        //        ax, ay, az, gx, gy, gz);
         if (ai_push_sample(ax, ay, az, gx, gy, gz)) {
             ESP_LOGI(TAG_APP, "AI inference finished");
             acquiring = false;

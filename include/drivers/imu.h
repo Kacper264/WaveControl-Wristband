@@ -13,11 +13,6 @@ void imu_read_raw(
     float *gx, float *gy, float *gz
 );
 
-void imu_read_filtered(
-    float *ax, float *ay, float *az,
-    float *gx, float *gy, float *gz
-);
-
 #ifdef __cplusplus
 }
 #endif
