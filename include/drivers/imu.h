@@ -8,6 +8,10 @@ extern "C" {
 
 void imu_init_hw();
 void imu_calibrate();
+void imu_read_raw(
+    float *ax, float *ay, float *az,
+    float *gx, float *gy, float *gz
+);
 
 void imu_read_filtered(
     float *ax, float *ay, float *az,

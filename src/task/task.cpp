@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "drivers/imu.h"
+#include "drivers/neopixel.h"
 #include "ia/ia.h"
 
 extern "C" {
@@ -20,6 +21,8 @@ extern "C" {
 #include "battery/battery.h"
 #include "power/power.h"
 
+#define NEOPIXEL_GPIO 8
+#define NEOPIXEL_COUNT 1
 
 #define TAG_APP "APP"
 
@@ -61,10 +64,13 @@ static void acquisition_task(void *arg)
             vTaskDelay(pdMS_TO_TICKS(10));
             continue;
         }
-
+        neopixel_blink_red(120, 80);
         float ax, ay, az, gx, gy, gz;
-        imu_read_filtered(&ax, &ay, &az, &gx, &gy, &gz);
+        imu_read_raw(&ax, &ay, &az, &gx, &gy, &gz);
 
+        // 👉 PRINT DES DONNÉES ENVOYÉES À L'IA
+        // printf("AI INPUT -> ACC: %.2f %.2f %.2f | GYRO: %.2f %.2f %.2f\r\n",
+        //        ax, ay, az, gx, gy, gz);
         if (ai_push_sample(ax, ay, az, gx, gy, gz)) {
             ESP_LOGI(TAG_APP, "AI inference finished");
             acquiring = false;
@@ -118,6 +124,8 @@ static void mqtt_task(void *arg)
             MOVE_STR[best_idx]
         );
 
+        neopixel_blink_blue(120, 80);
+
         // Publish MQTT
         esp_mqtt_client_publish(
             mqtt_get_client(),
@@ -127,7 +135,7 @@ static void mqtt_task(void *arg)
         );
 
         // Deep sleep
-        power_manager_arm_sleep();
+        //power_manager_arm_sleep();
     }
 }
 
@@ -153,6 +161,8 @@ static void battery_report_task(void *arg)
                  sect ? "true" : "false"
         );
 
+        neopixel_blink_blue(120, 80);
+
         esp_mqtt_client_publish(
             mqtt_get_client(),
             MQTT_TOPIC_HEALTH,
@@ -167,6 +177,9 @@ static void battery_report_task(void *arg)
 
 void app_tasks_start(void)
 {
+    neopixel_init(NEOPIXEL_GPIO, NEOPIXEL_COUNT);
+    neopixel_set_idle_green();
+
     ai_queue = xQueueCreate(1, sizeof(AiResult));
     ESP_LOGI(TAG_APP, "AI result queue created");
     xTaskCreate(acquisition_task,   "acq",  4096, nullptr, 5, &acquisition_handle);

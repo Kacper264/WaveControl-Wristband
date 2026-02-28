@@ -40,6 +40,7 @@ bool ai_push_sample(
 
     run_inference(imu_buffer, output_buffer);
 
+    // ===== Trouver la meilleure classe =====
     uint8_t best = 0;
     for (int i = 1; i < OUTPUT_SIZE; i++)
         if (output_buffer[i] > output_buffer[best])
@@ -49,8 +50,24 @@ bool ai_push_sample(
     last_conf = (uint8_t)(output_buffer[best] * 100);
     result_ready = true;
 
-    ESP_LOGI(TAG_AI, "Prediction: %s (%d%%)",
-             MOVE_STR[best], last_conf);
+    // ===== PRINT COMPLET =====
+    ESP_LOGI(TAG_AI, "===== AI RESULT =====");
+
+    for (int i = 0; i < OUTPUT_SIZE; i++)
+    {
+        float pct = output_buffer[i] * 100.0f;
+
+        ESP_LOGI(TAG_AI, "%-12s : %.2f%% %s",
+                 MOVE_STR[i],
+                 pct,
+                 (i == best) ? "<-- BEST" : "");
+    }
+
+    ESP_LOGI(TAG_AI, "Prediction: %s (%.2f%%)",
+             MOVE_STR[best],
+             output_buffer[best] * 100.0f);
+
+    ESP_LOGI(TAG_AI, "====================");
 
     return true;
 }

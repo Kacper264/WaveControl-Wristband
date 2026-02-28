@@ -18,7 +18,7 @@
 static const char* TAG = "AI";
 
 /* Tu peux réduire plus tard si besoin */
-constexpr int kTensorArenaSize = 120 * 1024;
+constexpr int kTensorArenaSize = 60 * 1024;
 
 /* -------------------------------------------------------------------------- */
 /* TFLite globals                                                              */
@@ -40,25 +40,29 @@ uint8_t* tensor_arena = nullptr;
 /* -------------------------------------------------------------------------- */
 /* Init model                                                                  */
 /* -------------------------------------------------------------------------- */
-
 bool init_model()
 {
     ESP_LOGI(TAG, "Init TensorFlow model");
+    ESP_LOGI(TAG, "Free internal 8-bit: %u",
+         (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT));
+ESP_LOGI(TAG, "Largest internal block: %u",
+         (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+ESP_LOGI(TAG, "Requested arena: %u", (unsigned)kTensorArenaSize);
 
     model = tflite::GetModel(model_tflite);
 
-    /* Allocation PSRAM */
+    /* Allocation en RAM interne (pas de PSRAM) */
     tensor_arena = (uint8_t*) heap_caps_malloc(
         kTensorArenaSize,
-        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT
+        MALLOC_CAP_8BIT
     );
 
     if (!tensor_arena) {
-        ESP_LOGE(TAG, "PSRAM allocation failed");
+        ESP_LOGE(TAG, "Internal RAM allocation failed");
         return false;
     }
 
-    ESP_LOGI(TAG, "Tensor arena allocated in PSRAM: %d bytes", kTensorArenaSize);
+    ESP_LOGI(TAG, "Tensor arena allocated in internal RAM: %d bytes", kTensorArenaSize);
 
     /* Register only needed ops */
     static tflite::MicroMutableOpResolver<8> resolver;
@@ -68,6 +72,9 @@ bool init_model()
     resolver.AddReshape();
     resolver.AddQuantize();
     resolver.AddDequantize();
+    resolver.AddExpandDims();
+    resolver.AddConv2D();
+    resolver.AddMaxPool2D();
 
     static tflite::MicroInterpreter static_interpreter(
         model,
