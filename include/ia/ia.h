@@ -11,7 +11,8 @@ void ai_init();
 /* pousse un sample IMU, retourne true si inference déclenchée */
 bool ai_push_sample(
     float ax, float ay, float az,
-    float gx, float gy, float gz
+    float gx, float gy, float gz,
+    float mx, float my, float mz
 );
 
 /* récupère dernier résultat */

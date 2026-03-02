@@ -24,14 +24,18 @@ void ai_init()
 
 bool ai_push_sample(
     float ax, float ay, float az,
-    float gx, float gy, float gz)
+    float gx, float gy, float gz, 
+    float mx, float my, float mz)
 {
-    imu_buffer[sample_index++] = ax;
-    imu_buffer[sample_index++] = ay;
-    imu_buffer[sample_index++] = az;
     imu_buffer[sample_index++] = gx;
     imu_buffer[sample_index++] = gy;
     imu_buffer[sample_index++] = gz;
+    imu_buffer[sample_index++] = ax;
+    imu_buffer[sample_index++] = ay;
+    imu_buffer[sample_index++] = az;
+    imu_buffer[sample_index++] = mx;
+    imu_buffer[sample_index++] = my;
+    imu_buffer[sample_index++] = mz;
 
     if (sample_index < INPUT_SIZE)
         return false;

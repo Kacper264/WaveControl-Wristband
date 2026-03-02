@@ -12,7 +12,7 @@
 /* Config                                                                      */
 /* -------------------------------------------------------------------------- */
 
-#define INPUT_SIZE   600
+#define INPUT_SIZE   900
 #define OUTPUT_SIZE  6
 
 static const char* TAG = "AI";
@@ -49,7 +49,7 @@ ESP_LOGI(TAG, "Largest internal block: %u",
          (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
 ESP_LOGI(TAG, "Requested arena: %u", (unsigned)kTensorArenaSize);
 
-    model = tflite::GetModel(model_tflite);
+    model = tflite::GetModel(model_quant_int8_tflite);
 
     /* Allocation en RAM interne (pas de PSRAM) */
     tensor_arena = (uint8_t*) heap_caps_malloc(

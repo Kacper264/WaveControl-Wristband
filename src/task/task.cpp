@@ -22,7 +22,7 @@ extern "C" {
 #include "power/power.h"
 
 #define NEOPIXEL_GPIO 8
-#define NEOPIXEL_COUNT 1
+#define NEOPIXEL_COUNT 2
 
 #define TAG_APP "APP"
 
@@ -64,11 +64,14 @@ static void acquisition_task(void *arg)
             vTaskDelay(pdMS_TO_TICKS(10));
             continue;
         }
-        neopixel_blink_red(120, 80);
-        float ax, ay, az, gx, gy, gz;
-        imu_read_raw(&ax, &ay, &az, &gx, &gy, &gz);
 
-        if (ai_push_sample(ax, ay, az, gx, gy, gz)) {
+        //neopixel_blink_red(120, 80);
+
+        float ax, ay, az, gx, gy, gz, mx, my, mz;
+        imu_read_raw(&ax, &ay, &az, &gx, &gy, &gz, &mx, &my, &mz);
+        ESP_LOGI("AI", "Sample ax=%.3f ay=%.3f az=%.3f gx=%.3f gy=%.3f gz=%.3f",
+         ax, ay, az, gx, gy, gz);
+        if (ai_push_sample(ax, ay, az, gx, gy, gz, mx, my, mz)) {
             ESP_LOGI(TAG_APP, "AI inference finished");
             acquiring = false;
         }
@@ -121,7 +124,7 @@ static void mqtt_task(void *arg)
             MOVE_STR[best_idx]
         );
 
-        neopixel_blink_blue(120, 80);
+        //neopixel_blink_blue(120, 80);
 
         // Publish MQTT
         esp_mqtt_client_publish(
@@ -158,7 +161,7 @@ static void battery_report_task(void *arg)
                  sect ? "true" : "false"
         );
 
-        neopixel_blink_blue(120, 80);
+        //neopixel_blink_blue(120, 80);
 
         esp_mqtt_client_publish(
             mqtt_get_client(),
@@ -175,7 +178,8 @@ static void battery_report_task(void *arg)
 void app_tasks_start(void)
 {
     neopixel_init(NEOPIXEL_GPIO, NEOPIXEL_COUNT);
-    neopixel_set_idle_green();
+    neopixel_set_pixel(0, 0, 40, 0); // vert d'idle sur la première LED
+    neopixel_set_pixel(1, 0, 0, 60);  // bleu d'idle sur la deuxième LED
 
     ai_queue = xQueueCreate(1, sizeof(AiResult));
     ESP_LOGI(TAG_APP, "AI result queue created");

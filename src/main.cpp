@@ -26,7 +26,7 @@ extern "C" void app_main()
     ESP_LOGI(TAG_APP, "I2C IMU starting...");
     vTaskDelay(pdMS_TO_TICKS(200));
     imu_init_hw();
-    imu_calibrate();
+    //imu_calibrate();
     ESP_LOGI(TAG_APP, "I2C IMU initialized and calibrated");
     ai_init();
 
