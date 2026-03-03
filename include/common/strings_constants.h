@@ -100,7 +100,7 @@ extern const float VBAT_MAX;
 /* -------------------------------------------------------------------------- */
 
 #define SEQ_LEN     100
-#define FEATURES    6
+#define FEATURES    9
 #define INPUT_SIZE  (SEQ_LEN * FEATURES)
 #define OUTPUT_SIZE 6
 

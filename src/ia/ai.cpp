@@ -27,23 +27,34 @@ bool ai_push_sample(
     float gx, float gy, float gz, 
     float mx, float my, float mz)
 {
+    if (sample_index + 9 <= INPUT_SIZE)
+{
     imu_buffer[sample_index++] = gx;
     imu_buffer[sample_index++] = gy;
     imu_buffer[sample_index++] = gz;
+
     imu_buffer[sample_index++] = ax;
     imu_buffer[sample_index++] = ay;
     imu_buffer[sample_index++] = az;
+
     imu_buffer[sample_index++] = mx;
     imu_buffer[sample_index++] = my;
     imu_buffer[sample_index++] = mz;
-
-    if (sample_index < INPUT_SIZE)
-        return false;
-
+}
+else
+{
+    // Comme ton code Arduino : si dépassement, on reset l'index
     sample_index = 0;
+}
 
-    run_inference(imu_buffer, output_buffer);
+// Si pas encore assez de données, on ne lance pas l'inférence
+if (sample_index < INPUT_SIZE)
+    return false;
 
+// Buffer plein -> inference puis reset index (comme ton reset obligatoire)
+sample_index = 0;
+
+run_inference(imu_buffer, output_buffer);
     // ===== Trouver la meilleure classe =====
     uint8_t best = 0;
     for (int i = 1; i < OUTPUT_SIZE; i++)

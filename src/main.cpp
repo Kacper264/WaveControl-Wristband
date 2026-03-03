@@ -20,8 +20,8 @@ extern "C" void app_main()
 {
     ESP_ERROR_CHECK(nvs_flash_init());
 
-    wifi_init_sta();
-    mqtt_init();
+    //wifi_init_sta();
+    //mqtt_init();
     
     ESP_LOGI(TAG_APP, "I2C IMU starting...");
     vTaskDelay(pdMS_TO_TICKS(200));

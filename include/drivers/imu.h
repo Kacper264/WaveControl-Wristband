@@ -13,6 +13,10 @@ void imu_read_raw(
     float *gx, float *gy, float *gz,
     float *mx, float *my, float *mz
 );
+void imu_read_calibrated(
+    float *ax, float *ay, float *az,
+    float *gx, float *gy, float *gz,
+    float *mx, float *my, float *mz);
 
 #ifdef __cplusplus
 }

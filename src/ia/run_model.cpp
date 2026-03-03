@@ -126,8 +126,8 @@ bool run_inference(float* input_data, float* output_data)
 
     for (int i = 0; i < INPUT_SIZE; i++)
     {
-        input_tensor->data.int8[i] =
-            static_cast<int8_t>(input_data[i] / in_scale + in_zero);
+        int8_t q = (int8_t)(input_data[i] / in_scale + in_zero);
+        input_tensor->data.int8[i] = q;
     }
 
     /* -------- Run inference -------- */
