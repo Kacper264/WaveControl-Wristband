@@ -25,6 +25,10 @@ extern "C" {
 #define NEOPIXEL_COUNT 2
 
 #define TAG_APP "APP"
+static float imu_buffer[INPUT_SIZE];
+static float output_buffer[OUTPUT_SIZE];
+
+static uint16_t sample_index = 0;
 
 struct AiResult {
     Move move;
@@ -36,16 +40,63 @@ typedef struct {
     uint8_t count;
 } AiBatch;
 
-static float imu_buffer[INPUT_SIZE];
-static float output_buffer[OUTPUT_SIZE];
-static size_t sample_index = 0;
-
 static QueueHandle_t ai_queue;
+static TaskHandle_t acquisition_handle = nullptr;
 
-// Handle de la task d'acquisition (pour la réveiller depuis l'ISR)
-static TaskHandle_t s_acq_task = NULL;
+/*
+static void acquisition_task(void *arg)
+{
+    const TickType_t xFrequency = pdMS_TO_TICKS(20); // 20ms = 50Hz
+    TickType_t xLastWakeTime; 
+    (void)arg;
+    int last_btn = 1;
 
-// Task: dort (0% CPU) jusqu'à un appui bouton, puis fait l'acquisition jusqu'à fin inference
+    bool acquiring = power_manager_woke_from_button();
+    if (acquiring) {
+        ESP_LOGI(TAG_APP, "Acquisition started (wake-up button)");
+        xLastWakeTime = xTaskGetTickCount(); // Initialise ici
+        power_manager_disarm_sleep();
+    }
+
+    while (true)
+    {
+        int btn = gpio_get_level((gpio_num_t)BUTTON_PIN);
+        
+        // Détection de l'appui sur le bouton
+        if (!acquiring && last_btn == 1 && btn == 0) {
+            ESP_LOGI(TAG_APP, "Acquisition started (button)");
+            acquiring = true;
+            // IMPORTANT : On synchronise le chrono au moment de l'appui
+            xLastWakeTime = xTaskGetTickCount(); 
+            power_manager_disarm_sleep();
+        }
+        last_btn = btn;
+
+        if (!acquiring) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+            continue;
+        }
+
+        //imu_read_raw(&ax, &ay, &az, &gx, &gy, &gz, &mx, &my, &mz);
+        imu_read_raw();
+        ESP_LOGI("AI", "Sample ax=%.3f ay=%.3f az=%.3f gx=%.3f gy=%.3f gz=%.3f",
+
+         ax, ay, az, gx, gy, gz);
+        // Optionnel : Réduis le log pour ne pas ralentir la tâche
+        //ESP_LOGD("AI", "Sample ax=%.3f gx=%.3f", ax, gx);
+
+        if (ai_push_sample(ax, ay, az, gx, gy, gz)) {
+            ESP_LOGI(TAG_APP, "AI inference finished");
+            acquiring = false;
+        }
+
+        // Attend exactement le temps restant pour atteindre les 20ms
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+}
+
+*/
+
 static void acquisition_task(void *arg)
 {
     const TickType_t xFrequency = pdMS_TO_TICKS(20); // 20ms = 50Hz
@@ -154,6 +205,9 @@ static void mqtt_task(void *arg)
             if (batch.results[i].confidence > batch.results[best_idx].confidence)
             {
                 best_idx = i;
+                // ESP_LOGI(TAG_APP, "New best move: %s with confidence %u%%",
+                //          MOVE_STR[best_idx],
+                //          batch.results[i].confidence);
             }
         }
 
@@ -217,13 +271,12 @@ static void battery_report_task(void *arg)
 void app_tasks_start(void)
 {
     neopixel_init(NEOPIXEL_GPIO, NEOPIXEL_COUNT);
-    neopixel_set_pixel(0, 0, 255, 0); // vert d'idle sur la première LED
-    neopixel_set_pixel(1, 0, 0, 255);  // bleu d'idle sur la deuxième LED
+    neopixel_set_pixel(0, 0, 40, 0); // vert d'idle sur la première LED
+    neopixel_set_pixel(1, 0, 0, 60);  // bleu d'idle sur la deuxième LED
 
     ai_queue = xQueueCreate(1, sizeof(AiResult));
     ESP_LOGI(TAG_APP, "AI result queue created");
-
-    xTaskCreate(acquisition_task,   "acq",  4096, nullptr, 5, nullptr);
+    xTaskCreate(acquisition_task,   "acq",  4096, nullptr, 5, &acquisition_handle);
     xTaskCreate(result_task,        "res",  4096, nullptr, 6, nullptr);
     xTaskCreate(mqtt_task,          "mqtt", 4096, nullptr, 4, nullptr);
     xTaskCreate(battery_report_task,"hb",   4096, nullptr, 3, nullptr);

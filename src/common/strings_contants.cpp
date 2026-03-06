@@ -74,7 +74,7 @@ const float VBAT_MAX = 4.20f;
 
 const char *MOVE_STR[OUTPUT_SIZE] = {
     "circle_left",
-    "circle_right",
+    //"circle_right",
     "down",
     "left",
     "right",

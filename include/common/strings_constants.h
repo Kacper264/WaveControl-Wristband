@@ -100,9 +100,9 @@ extern const float VBAT_MAX;
 /* -------------------------------------------------------------------------- */
 
 #define SEQ_LEN     100
-#define FEATURES    9
+#define FEATURES    6
 #define INPUT_SIZE  (SEQ_LEN * FEATURES)
-#define OUTPUT_SIZE 6
+#define OUTPUT_SIZE 5
 
 /* -------------------------------------------------------------------------- */
 /* MOVES                                                                      */
@@ -111,13 +111,13 @@ extern const float VBAT_MAX;
 enum class Move : uint8_t
 {
     CircleLeft = 0,
-    CircleRight,
+    //CircleRight,
     Down,
     Left,
     Right,
     Up
 };
-
+    
 extern const char *MOVE_STR[];
 
 #ifdef __cplusplus
