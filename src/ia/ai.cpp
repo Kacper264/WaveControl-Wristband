@@ -4,9 +4,6 @@
 
 #define TAG_AI "AI"
 
-static float imu_buffer[INPUT_SIZE];
-static float output_buffer[OUTPUT_SIZE];
-
 static uint16_t sample_index = 0;
 static Move last_move;
 static uint8_t last_conf;
@@ -22,39 +19,15 @@ void ai_init()
     result_ready = false;
 }
 
-bool ai_push_sample(
-    float ax, float ay, float az,
-    float gx, float gy, float gz, 
-    float mx, float my, float mz)
+void ai_run_inference(float* imu_buffer, float* output_buffer)
 {
-    if (sample_index + 9 <= INPUT_SIZE)
-{
-    imu_buffer[sample_index++] = gx;
-    imu_buffer[sample_index++] = gy;
-    imu_buffer[sample_index++] = gz;
-
-    imu_buffer[sample_index++] = ax;
-    imu_buffer[sample_index++] = ay;
-    imu_buffer[sample_index++] = az;
-
-    imu_buffer[sample_index++] = mx;
-    imu_buffer[sample_index++] = my;
-    imu_buffer[sample_index++] = mz;
-}
-else
-{
-    // Comme ton code Arduino : si dépassement, on reset l'index
-    sample_index = 0;
+    run_inference(imu_buffer, output_buffer);
 }
 
-// Si pas encore assez de données, on ne lance pas l'inférence
-if (sample_index < INPUT_SIZE)
-    return false;
+void process_inference_result(float* output_buffer)
+{
+ 
 
-// Buffer plein -> inference puis reset index (comme ton reset obligatoire)
-sample_index = 0;
-
-run_inference(imu_buffer, output_buffer);
     // ===== Trouver la meilleure classe =====
     uint8_t best = 0;
     for (int i = 1; i < OUTPUT_SIZE; i++)
@@ -83,8 +56,6 @@ run_inference(imu_buffer, output_buffer);
              output_buffer[best] * 100.0f);
 
     ESP_LOGI(TAG_AI, "====================");
-
-    return true;
 }
 
 bool ai_get_result(Move *move, uint8_t *confidence)

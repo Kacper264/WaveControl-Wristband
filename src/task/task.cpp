@@ -36,79 +36,86 @@ typedef struct {
     uint8_t count;
 } AiBatch;
 
+static float imu_buffer[INPUT_SIZE];
+static float output_buffer[OUTPUT_SIZE];
+static size_t sample_index = 0;
+
 static QueueHandle_t ai_queue;
 
 // Handle de la task d'acquisition (pour la réveiller depuis l'ISR)
 static TaskHandle_t s_acq_task = NULL;
 
-// ISR bouton: réveille la task via notification
-static void IRAM_ATTR button_isr_handler(void *arg)
-{
-    (void)arg;
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-
-    if (s_acq_task) {
-        vTaskNotifyGiveFromISR(s_acq_task, &xHigherPriorityTaskWoken);
-    }
-
-    if (xHigherPriorityTaskWoken) {
-        portYIELD_FROM_ISR();
-    }
-}
-
-// Init bouton en interruption (pull-up + front descendant = appui -> niveau bas)
-static void button_init_isr(void)
-{
-    gpio_config_t io_conf = {};
-    io_conf.intr_type = GPIO_INTR_NEGEDGE;      // appui -> 1->0 (si pull-up)
-    io_conf.mode = GPIO_MODE_INPUT;
-    io_conf.pin_bit_mask = 1ULL << (int)BUTTON_PIN;
-    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
-    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    ESP_ERROR_CHECK(gpio_config(&io_conf));
-
-    // Service ISR (à installer 1 seule fois dans tout le projet)
-    ESP_ERROR_CHECK(gpio_install_isr_service(0));
-    ESP_ERROR_CHECK(gpio_isr_handler_add((gpio_num_t)BUTTON_PIN, button_isr_handler, NULL));
-}
-
 // Task: dort (0% CPU) jusqu'à un appui bouton, puis fait l'acquisition jusqu'à fin inference
 static void acquisition_task(void *arg)
 {
+    const TickType_t xFrequency = pdMS_TO_TICKS(20); // 20ms = 50Hz
+    TickType_t xLastWakeTime; 
     (void)arg;
-    s_acq_task = xTaskGetCurrentTaskHandle();
+    int last_btn = 1;
+
+    bool acquiring = power_manager_woke_from_button();
+    if (acquiring) {
+        ESP_LOGI(TAG_APP, "Acquisition started (wake-up button)");
+        xLastWakeTime = xTaskGetTickCount(); // Initialise ici
+        power_manager_disarm_sleep();
+    }
 
     while (true)
     {
-        // Bloqué ici tant qu'on n'appuie pas sur le bouton (ne tourne pas en fond)
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
-        ESP_LOGI(TAG_APP, "Acquisition started (button)");
-
-        // Anti-rebond simple
-        vTaskDelay(pdMS_TO_TICKS(50));
-        // Optionnel: vider les notifications accumulées si double appui très rapide
-        ulTaskNotifyTake(pdTRUE, 0);
-
-        // power_manager_disarm_sleep(); // si tu veux conserver ton comportement
-
-        // Boucle d'acquisition active jusqu'à ce que ai_push_sample() retourne true
-        for (;;)
-        {
-            float ax, ay, az, gx, gy, gz, mx, my, mz;
-            imu_read_raw(&ax, &ay, &az, &gx, &gy, &gz, &mx, &my, &mz);
-
-            ESP_LOGI("AI", "ax=%.3f ay=%.3f az=%.3f gx=%.3f gy=%.3f gz=%.3f",
-                     ax, ay, az, gx, gy, gz);
-
-            // IMPORTANT: tu m'as dit que ai_push_sample attend du brut -> on envoie RAW
-            if (ai_push_sample(ax, ay, az, gx, gy, gz, mx, my, mz)) {
-                ESP_LOGI(TAG_APP, "AI inference finished");
-                break; // stop acquisition, retour en attente d'un prochain appui
-            }
-
-            vTaskDelay(pdMS_TO_TICKS(20)); // 50 Hz
+        int btn = gpio_get_level((gpio_num_t)BUTTON_PIN);
+        
+        // Détection de l'appui sur le bouton
+        if (!acquiring && last_btn == 1 && btn == 0) {
+            //printf("IMU initialized and calibrated : %f, %f, %f,%f,%f,%f \n", ax_cal, ay_cal, az_cal, gx_cal, gy_cal, gz_cal);
+            printf("#GESTE_START\n");
+            //printf("ax;ay;az;gx;gy;gz\n");
+            acquiring = true;
+            // IMPORTANT : On synchronise le chrono au moment de l'appui
+            xLastWakeTime = xTaskGetTickCount(); 
+            power_manager_disarm_sleep();
         }
+        last_btn = btn;
+
+        if (!acquiring) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+            continue;
+        }
+
+        if(acquiring) {
+            // Lire les données de l'IMU
+            for(int i = 0; i < 101; i++) {
+                xLastWakeTime = xTaskGetTickCount(); 
+                //imu_read_raw(&ax, &ay, &az, &gx, &gy, &gz, &mx, &my, &mz);
+                imu_read_raw();
+
+                if (sample_index + FEATURES <= INPUT_SIZE) {
+                    imu_buffer[sample_index++] = ax;
+                    imu_buffer[sample_index++] = ay;
+                    imu_buffer[sample_index++] = az;
+                    imu_buffer[sample_index++] = gx;
+                    imu_buffer[sample_index++] = gy;
+                    imu_buffer[sample_index++] = gz;
+                }
+                else
+                {
+                    sample_index=0;
+                }
+                
+                printf("%d;%d;%d;%d;%d;%d\n", ax, ay, az, gx, gy, gz);
+                // Optionnel : Réduis le log pour ne pas ralentir la tâche
+                //ESP_LOGD("AI", "Sample ax=%.3f gx=%.3f", ax, gx);
+
+        // Attend exactement le temps restant pour atteindre les 20ms
+            vTaskDelayUntil(&xLastWakeTime, xFrequency);
+
+            }
+            acquiring = false;
+            printf("#GESTE_END\n");
+            ai_run_inference(& imu_buffer[0], & output_buffer[0]);
+            process_inference_result(& output_buffer[0]);
+
+
+        }    
     }
 }
 
@@ -215,9 +222,9 @@ void app_tasks_start(void)
 
     ai_queue = xQueueCreate(1, sizeof(AiResult));
     ESP_LOGI(TAG_APP, "AI result queue created");
-    button_init_isr();
+
     xTaskCreate(acquisition_task,   "acq",  4096, nullptr, 5, nullptr);
     xTaskCreate(result_task,        "res",  4096, nullptr, 6, nullptr);
-    //xTaskCreate(mqtt_task,          "mqtt", 4096, nullptr, 4, nullptr);
-    //xTaskCreate(battery_report_task,"hb",   4096, nullptr, 3, nullptr);
+    xTaskCreate(mqtt_task,          "mqtt", 4096, nullptr, 4, nullptr);
+    xTaskCreate(battery_report_task,"hb",   4096, nullptr, 3, nullptr);
 }

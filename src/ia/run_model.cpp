@@ -1,153 +1,109 @@
 #include "tensorflow/lite/micro/micro_interpreter.h"
+#include "tensorflow/lite/micro/micro_log.h"
 #include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 
 #include "esp_log.h"
-#include "esp_heap_caps.h"   // 👈 PSRAM allocator
+#include "esp_heap_caps.h" 
 
 #include "ia/run_model.h"
 #include "ia/model_data.h"
 
-/* -------------------------------------------------------------------------- */
-/* Config                                                                      */
-/* -------------------------------------------------------------------------- */
-
-#define INPUT_SIZE   900
-#define OUTPUT_SIZE  6
-
 static const char* TAG = "AI";
 
-/* Tu peux réduire plus tard si besoin */
-constexpr int kTensorArenaSize = 60 * 1024;
+// =======================================================
+// CONFIG MODEL
+// =======================================================
+#define INPUT_SIZE   600 
+#define OUTPUT_SIZE  5  
 
-/* -------------------------------------------------------------------------- */
-/* TFLite globals                                                              */
-/* -------------------------------------------------------------------------- */
+// En Float32 : 1 élément = 4 octets
+#define EXPECTED_INPUT_BYTES  (INPUT_SIZE * sizeof(float))
+#define EXPECTED_OUTPUT_BYTES (OUTPUT_SIZE * sizeof(float))
+
+// Taille de l'arena (ajuster si AllocateTensors échoue)
+constexpr int kTensorArenaSize = 120 * 1024;
 
 namespace {
+    const tflite::Model* model = nullptr;
+    tflite::MicroInterpreter* interpreter = nullptr;
+    TfLiteTensor* input_tensor = nullptr;
+    TfLiteTensor* output_tensor = nullptr;
 
-const tflite::Model* model = nullptr;
-tflite::MicroInterpreter* interpreter = nullptr;
-
-TfLiteTensor* input_tensor  = nullptr;
-TfLiteTensor* output_tensor = nullptr;
-
-/* Arena en PSRAM (au lieu de DRAM) */
-uint8_t* tensor_arena = nullptr;
-
+    // Allocation statique de l'arena
+    static uint8_t tensor_arena[kTensorArenaSize];
 }
 
-/* -------------------------------------------------------------------------- */
-/* Init model                                                                  */
-/* -------------------------------------------------------------------------- */
-bool init_model()
-{
-    ESP_LOGI(TAG, "Init TensorFlow model");
-    ESP_LOGI(TAG, "Free internal 8-bit: %u",
-         (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT));
-ESP_LOGI(TAG, "Largest internal block: %u",
-         (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
-ESP_LOGI(TAG, "Requested arena: %u", (unsigned)kTensorArenaSize);
+// =======================================================
+// INIT MODEL
+// =======================================================
+bool init_model() {
+    ESP_LOGI(TAG, "Initialisation du modèle Float32...");
 
-    model = tflite::GetModel(model_quant_int8_tflite);
-
-    /* Allocation en RAM interne (pas de PSRAM) */
-    tensor_arena = (uint8_t*) heap_caps_malloc(
-        kTensorArenaSize,
-        MALLOC_CAP_8BIT
-    );
-
-    if (!tensor_arena) {
-        ESP_LOGE(TAG, "Internal RAM allocation failed");
+    model = tflite::GetModel(model_float32_tflite);
+    if (model->version() != TFLITE_SCHEMA_VERSION) {
+        ESP_LOGE(TAG, "Erreur: Version du schéma TFLite incompatible !");
         return false;
     }
 
-    ESP_LOGI(TAG, "Tensor arena allocated in internal RAM: %d bytes", kTensorArenaSize);
+    // 1. Augmentez le nombre d'opérations autorisées (ex: 20 au lieu de 15)
+    // 2. Ajoutez explicitement l'opération manquante
+    static tflite::MicroMutableOpResolver<20> resolver;
+    
+    // Ajoutez ExpandDims ici :
+    if (resolver.AddExpandDims() != kTfLiteOk) {
+        ESP_LOGE(TAG, "Échec de l'ajout de ExpandDims au resolver");
+        return false;
+    }
 
-    /* Register only needed ops */
-    static tflite::MicroMutableOpResolver<8> resolver;
-
-    resolver.AddFullyConnected();
+    // Ajoutez les autres opérations courantes (selon l'architecture de votre modèle)
     resolver.AddSoftmax();
-    resolver.AddReshape();
-    resolver.AddQuantize();
-    resolver.AddDequantize();
-    resolver.AddExpandDims();
     resolver.AddConv2D();
-    resolver.AddMaxPool2D();
+    resolver.AddFullyConnected();
+    resolver.AddReshape();
+    resolver.AddQuantize();   // Parfois nécessaire même en float32
+    resolver.AddDequantize(); // Parfois nécessaire même en float32
 
+    // Création de l'interpréteur
     static tflite::MicroInterpreter static_interpreter(
-        model,
-        resolver,
-        tensor_arena,
-        kTensorArenaSize
-    );
+        model, resolver, tensor_arena, kTensorArenaSize);
 
     interpreter = &static_interpreter;
 
-    if (interpreter->AllocateTensors() != kTfLiteOk) {
-        ESP_LOGE(TAG, "AllocateTensors FAILED");
+    // Tentative d'allocation
+    TfLiteStatus allocate_status = interpreter->AllocateTensors();
+    if (allocate_status != kTfLiteOk) {
+        // Si l'erreur persiste ici après l'ajout de l'Op, 
+        // c'est que kTensorArenaSize est vraiment trop petit.
+        ESP_LOGE(TAG, "AllocateTensors() a échoué ! (Code: %d)", allocate_status);
         return false;
     }
 
     input_tensor  = interpreter->input(0);
     output_tensor = interpreter->output(0);
 
-    ESP_LOGI(TAG, "Input bytes: %d", input_tensor->bytes);
-    ESP_LOGI(TAG, "Output bytes: %d", output_tensor->bytes);
-
-    if (input_tensor->bytes != INPUT_SIZE) {
-        ESP_LOGE(TAG, "Input size mismatch");
-        return false;
-    }
-
-    if (output_tensor->bytes != OUTPUT_SIZE) {
-        ESP_LOGE(TAG, "Output size mismatch");
-        return false;
-    }
-
-    ESP_LOGI(TAG, "Model ready (INT8 quantized)");
-
+    ESP_LOGI(TAG, "Modèle prêt. Arena utilisée : %d octets", interpreter->arena_used_bytes());
     return true;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Inference                                                                   */
-/* -------------------------------------------------------------------------- */
-
-bool run_inference(float* input_data, float* output_data)
-{
+// =======================================================
+// RUN INFERENCE
+// =======================================================
+bool run_inference(float* input_data, float* output_data) {
     if (!interpreter) return false;
 
-    /* -------- Quantize input -------- */
+    // 1. Copie des données d'entrée (Directe car Float32 -> Float32)
+    // On accède au pointeur float du tenseur via data.f
+    memcpy(input_tensor->data.f, input_data, EXPECTED_INPUT_BYTES);
 
-    const float in_scale = input_tensor->params.scale;
-    const int   in_zero  = input_tensor->params.zero_point;
-
-    for (int i = 0; i < INPUT_SIZE; i++)
-    {
-        int8_t q = (int8_t)(input_data[i] / in_scale + in_zero);
-        input_tensor->data.int8[i] = q;
-    }
-
-    /* -------- Run inference -------- */
-
-    if (interpreter->Invoke() != kTfLiteOk)
-    {
-        ESP_LOGE(TAG, "Invoke FAILED");
+    // 2. Lancement de l'inférence
+    if (interpreter->Invoke() != kTfLiteOk) {
+        ESP_LOGE(TAG, "Erreur lors de l'exécution (Invoke)");
         return false;
     }
 
-    /* -------- Dequantize output -------- */
-
-    const float out_scale = output_tensor->params.scale;
-    const int   out_zero  = output_tensor->params.zero_point;
-
-    for (int i = 0; i < OUTPUT_SIZE; i++)
-    {
-        int8_t q = output_tensor->data.int8[i];
-        output_data[i] = (q - out_zero) * out_scale;
-    }
+    // 3. Récupération des résultats
+    memcpy(output_data, output_tensor->data.f, EXPECTED_OUTPUT_BYTES);
 
     return true;
 }

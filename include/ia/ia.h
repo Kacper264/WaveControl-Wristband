@@ -9,12 +9,8 @@ extern "C" {
 void ai_init();
 
 /* pousse un sample IMU, retourne true si inference déclenchée */
-bool ai_push_sample(
-    float ax, float ay, float az,
-    float gx, float gy, float gz,
-    float mx, float my, float mz
-);
-
+void process_inference_result(float* output_buffer);
+void ai_run_inference(float* imu_buffer, float* output_buffer);
 /* récupère dernier résultat */
 bool ai_get_result(Move *move, uint8_t *confidence);
 

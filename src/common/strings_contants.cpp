@@ -80,3 +80,16 @@ const char *MOVE_STR[OUTPUT_SIZE] = {
     "right",
     "up"
 };
+
+int ax = 0;
+int ay = 0;
+int az = 0;
+int gx = 0;
+int gy = 0;
+int gz = 0;
+int ax_cal = 0;
+int ay_cal = 0;
+int az_cal = 0;
+int gx_cal = 0;
+int gy_cal = 0;
+int gz_cal = 0;

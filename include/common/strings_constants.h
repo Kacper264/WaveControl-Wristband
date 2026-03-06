@@ -124,8 +124,16 @@ extern const char *MOVE_STR[];
 }
 #endif
 
-// ========================
-// MQTT
-// ========================
 
-
+extern int ax;
+extern int ay;
+extern int az; // données brutes d'accéléromètre
+extern int gx;
+extern int gy;
+extern int gz; // données brutes de gyroscope
+extern int ax_cal;
+extern int ay_cal;
+extern int az_cal; // offsets d'accéléromètre pour calibration
+extern int gx_cal;
+extern int gy_cal;
+extern int gz_cal; // offsets de gyroscope pour calibration
