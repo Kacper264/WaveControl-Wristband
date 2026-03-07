@@ -62,7 +62,7 @@ const uint16_t AI_PAYLOAD_SIZE = 120;
 const uint32_t BATTERY_REPORT_PERIOD_MS = 15 * 1000;
 
 const adc1_channel_t BAT_ADC_CHANNEL = ADC1_CHANNEL_0;
-const adc_atten_t BAT_ADC_ATTEN = ADC_ATTEN_DB_11;
+const adc_atten_t BAT_ADC_ATTEN = ADC_ATTEN_DB_12;
 const adc_bits_width_t BAT_ADC_WIDTH = ADC_WIDTH_BIT_12;
 
 const float BAT_DIVIDER_RATIO = 2.0f;
@@ -74,7 +74,7 @@ const uint16_t BAT_ADC_STABILIZE_DELAY_US = 200;
 const uint32_t BAT_ADC_VREF_MV = 1100;
 
 const float BATTERY_FILTER_ALPHA = 0.2f;
-const float SECTOR_DETECTION_THRESHOLD = 0.01f;
+const float SECTOR_DETECTION_THRESHOLD = 0.002f;
 
 /* -------------------------------------------------------------------------- */
 /* IMU / I2C CONFIG                                                           */
@@ -104,7 +104,7 @@ const uint32_t IMU_CALIB_DELAY_MS = 5;
 /* NEOPIXEL CONFIG                                                            */
 /* -------------------------------------------------------------------------- */
 
-const gpio_num_t NEOPIXEL_GPIO = GPIO_NUM_8;
+const gpio_num_t NEOPIXEL_GPIO = GPIO_NUM_2;
 const uint8_t NEOPIXEL_COUNT = 2;
 
 const uint8_t NEOPIXEL_IDLE_R = 0;

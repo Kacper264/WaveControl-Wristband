@@ -133,14 +133,14 @@ bool is_on_sector(float vbat)
     prev_vbat = vbat;
 
     // Si la tension augmente au-delà du seuil -> probablement en charge
-    if (delta > threshold)
+    if (delta >= threshold)
     {
         last_state = true;
     }
-    else if (delta < threshold)
+    else if (delta <= -threshold)
     {
         last_state = false;
     }
-
+    ESP_LOGI("BATTERY", "Vbat: %.3f V, Delta: %.3f V, On sector: %s", vbat, delta, last_state ? "YES" : "NO");
     return last_state;
 }

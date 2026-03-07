@@ -136,7 +136,9 @@ static void battery_report_task(void *arg)
                  pct,
                  sect ? "true" : "false"
         );
-
+        if (sect == true && pct < 100) {
+            neopixel_blink_green_loading(1, 200, 200);
+        }
         esp_mqtt_client_publish(
             mqtt_get_client(),
             MQTT_TOPIC_HEALTH,

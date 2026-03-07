@@ -18,6 +18,7 @@ struct LedCmd {
     uint8_t r, g, b;
     uint32_t on_ms;
     uint32_t off_ms;
+    uint32_t duration_ms;
 };
 
 struct Rgb {
@@ -156,16 +157,40 @@ static void led_task(void* arg)
                     if (cmd.index >= 0 && (uint32_t)cmd.index < s_num_leds) {
                         uint32_t i = (uint32_t)cmd.index;
 
-                        set_one(i, 0, 255, 0);
-                        refresh();
-                        vTaskDelay(pdMS_TO_TICKS(cmd.on_ms));
+                        // Si duration_ms == 0, on garde l'ancien comportement : un seul blink
+                        if (cmd.duration_ms == 0) {
+                            set_one(i, 0, 255, 0);
+                            refresh();
+                            vTaskDelay(pdMS_TO_TICKS(cmd.on_ms));
 
-                        set_one(i, 0, 0, 0);
-                        refresh();
-                        vTaskDelay(pdMS_TO_TICKS(cmd.off_ms));
+                            set_one(i, 0, 0, 0);
+                            refresh();
+                            vTaskDelay(pdMS_TO_TICKS(cmd.off_ms));
 
-                        apply_idle_one(i);
-                        refresh();
+                            apply_idle_one(i);
+                            refresh();
+                        } else {
+                            TickType_t start = xTaskGetTickCount();
+                            TickType_t duration_ticks = pdMS_TO_TICKS(cmd.duration_ms);
+
+                            while ((xTaskGetTickCount() - start) < duration_ticks) {
+                                set_one(i, 0, 255, 0);
+                                refresh();
+                                vTaskDelay(pdMS_TO_TICKS(cmd.on_ms));
+
+                                // Recheck durée après le ON
+                                if ((xTaskGetTickCount() - start) >= duration_ticks) {
+                                    break;
+                                }
+
+                                set_one(i, 0, 0, 0);
+                                refresh();
+                                vTaskDelay(pdMS_TO_TICKS(cmd.off_ms));
+                            }
+
+                            apply_idle_one(i);
+                            refresh();
+                        }
                     }
                     break;
 
@@ -234,6 +259,7 @@ void neopixel_set_pixel(uint32_t index, uint8_t r, uint8_t g, uint8_t b)
     cmd.r = r;
     cmd.g = g;
     cmd.b = b;
+    cmd.duration_ms = 0;
 
     xQueueSend(s_led_queue, &cmd, 0);
 }
@@ -250,6 +276,7 @@ void neopixel_set_all(uint8_t r, uint8_t g, uint8_t b)
     cmd.r = r;
     cmd.g = g;
     cmd.b = b;
+    cmd.duration_ms = 0;
 
     xQueueSend(s_led_queue, &cmd, 0);
 }
@@ -267,6 +294,7 @@ void neopixel_set_idle_pixel(uint32_t index, uint8_t r, uint8_t g, uint8_t b)
     cmd.r = r;
     cmd.g = g;
     cmd.b = b;
+    cmd.duration_ms = 0;
 
     xQueueSend(s_led_queue, &cmd, 0);
 }
@@ -283,6 +311,7 @@ void neopixel_set_idle_all(uint8_t r, uint8_t g, uint8_t b)
     cmd.r = r;
     cmd.g = g;
     cmd.b = b;
+    cmd.duration_ms = 0;
 
     xQueueSend(s_led_queue, &cmd, 0);
 }
@@ -299,6 +328,7 @@ void neopixel_blink_blue(uint32_t index, uint32_t on_ms, uint32_t off_ms)
     cmd.index = (int16_t)index;
     cmd.on_ms = on_ms;
     cmd.off_ms = off_ms;
+    cmd.duration_ms = 0;
 
     xQueueSend(s_led_queue, &cmd, 0);
 }
@@ -315,6 +345,23 @@ void neopixel_blink_green(uint32_t index, uint32_t on_ms, uint32_t off_ms)
     cmd.index = (int16_t)index;
     cmd.on_ms = on_ms;
     cmd.off_ms = off_ms;
+    cmd.duration_ms = 0;
+
+    xQueueSend(s_led_queue, &cmd, 0);
+}
+/*
+ * Fait clignoter en vert un seul neopixel durant le chargement.
+ */
+void neopixel_blink_green_loading(uint32_t index, uint32_t on_ms, uint32_t off_ms)
+{
+    if (!s_led_queue) return;
+
+    LedCmd cmd{};
+    cmd.type = LedCmdType::BLINK_ONE_GREEN;
+    cmd.index = (int16_t)index;
+    cmd.on_ms = on_ms;
+    cmd.off_ms = off_ms;
+    cmd.duration_ms = 60000; // 1 minute
 
     xQueueSend(s_led_queue, &cmd, 0);
 }

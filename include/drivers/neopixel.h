@@ -16,6 +16,7 @@ void neopixel_set_idle_all(uint8_t r, uint8_t g, uint8_t b);
 
 void neopixel_blink_blue(uint32_t index, uint32_t on_ms, uint32_t off_ms);
 void neopixel_blink_green(uint32_t index, uint32_t on_ms, uint32_t off_ms);
+void neopixel_blink_green_loading(uint32_t index, uint32_t on_ms, uint32_t off_ms);
 
 void neopixel_off();
 
