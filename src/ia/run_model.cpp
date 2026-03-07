@@ -1,13 +1,4 @@
-#include "tensorflow/lite/micro/micro_interpreter.h"
-#include "tensorflow/lite/micro/micro_log.h"
-#include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
-#include "tensorflow/lite/schema/schema_generated.h"
-
-#include "esp_log.h"
-#include "esp_heap_caps.h" 
-
-#include "ia/run_model.h"
-#include "ia/model_data.h"
+#include "include.h"
 
 static const char* TAG = "AI";
 
