@@ -5,9 +5,6 @@ static const char* TAG = "AI";
 // =======================================================
 // CONFIG MODEL
 // =======================================================
-#define INPUT_SIZE   600 
-#define OUTPUT_SIZE  5  
-
 // En Float32 : 1 élément = 4 octets
 #define EXPECTED_INPUT_BYTES  (INPUT_SIZE * sizeof(float))
 #define EXPECTED_OUTPUT_BYTES (OUTPUT_SIZE * sizeof(float))
