@@ -9,7 +9,6 @@ void battery_init(void);
 float battery_read_voltage(void);
 uint8_t battery_read_percent(void);
 bool is_on_sector(float);
-
 #ifdef __cplusplus
 }
 #endif

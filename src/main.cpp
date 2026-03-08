@@ -1,35 +1,28 @@
-#include "drivers/imu.h"
-#include "ia/ia.h"
-
-extern "C" {
-#include "nvs_flash.h"
-#include "driver/gpio.h"
-#include "esp_log.h"
-#include "net/wifi_manager.h"
-#include "net/mqtt_manager.h"
-#include "common/strings_constants.h"
-}
-
-#include "battery/battery.h"
-#include "power/power.h"
-#include "task/task.h"
+#include "include.h"
 
 #define TAG_APP "APP"
 
+/*
+ * Point d'entrée principal de l'application ESP-IDF.
+ */
 extern "C" void app_main()
 {
+    // Initialise la mémoire non volatile (utilisée notamment par le WiFi)
     ESP_ERROR_CHECK(nvs_flash_init());
 
+    // Initialisation réseau
     wifi_init_sta();
     mqtt_init();
     
-    ESP_LOGI(TAG_APP, "I2C IMU starting...");
+    // Initialisation et calibration de l'IMU
     vTaskDelay(pdMS_TO_TICKS(200));
     imu_init_hw();
     imu_calibrate();
-    ESP_LOGI(TAG_APP, "I2C IMU initialized and calibrated");
+
+    // Initialisation du module IA
     ai_init();
 
+    // Configuration du bouton utilisateur
     gpio_config_t btn{};
     btn.pin_bit_mask = 1ULL << BUTTON_PIN;
     btn.mode = GPIO_MODE_INPUT;
@@ -38,9 +31,11 @@ extern "C" void app_main()
     btn.intr_type = GPIO_INTR_DISABLE;
     gpio_config(&btn);
 
+    // Initialisation gestion batterie et alimentation
     battery_init();
     power_manager_init();
 
+    // Démarrage des tâches applicatives
     app_tasks_start();
 
     ESP_LOGI(TAG_APP, "System started");

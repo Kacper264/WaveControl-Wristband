@@ -1,58 +1,59 @@
-#include "ia/ia.h"
-#include "ia/run_model.h"
-#include "esp_log.h"
+#include "include.h"
 
 #define TAG_AI "AI"
 
-static float imu_buffer[INPUT_SIZE];
-static float output_buffer[OUTPUT_SIZE];
-
-static uint16_t sample_index = 0;
+/* Dernier résultat d'inférence conservé en mémoire */
 static Move last_move;
 static uint8_t last_conf;
 static bool result_ready = false;
 
+/*
+ * Initialise le module IA et charge le modèle.
+ */
 void ai_init()
 {
     if (!init_model()) {
         ESP_LOGE(TAG_AI, "MODEL INIT FAILED");
         return;
     }
-    sample_index = 0;
+
     result_ready = false;
 }
 
-bool ai_push_sample(
-    float ax, float ay, float az,
-    float gx, float gy, float gz)
+/*
+ * Lance l'inférence sur la fenêtre IMU fournie.
+ * Le résultat brut est écrit dans output_buffer.
+ */
+void ai_run_inference(float* imu_buffer, float* output_buffer)
 {
-    imu_buffer[sample_index++] = ax;
-    imu_buffer[sample_index++] = ay;
-    imu_buffer[sample_index++] = az;
-    imu_buffer[sample_index++] = gx;
-    imu_buffer[sample_index++] = gy;
-    imu_buffer[sample_index++] = gz;
-
-    if (sample_index < INPUT_SIZE)
-        return false;
-
-    sample_index = 0;
-
     run_inference(imu_buffer, output_buffer);
+}
 
-    // ===== Trouver la meilleure classe =====
+/*
+ * Analyse la sortie du modèle :
+ * - recherche la classe la plus probable
+ * - mémorise le dernier résultat
+ * - affiche les scores
+ * - publie le mouvement détecté sur MQTT
+ */
+void process_inference_result(float* output_buffer)
+{
+    char payload[AI_PAYLOAD_SIZE];
+
+    // Recherche de la classe avec le score le plus élevé
     uint8_t best = 0;
     for (int i = 1; i < OUTPUT_SIZE; i++)
         if (output_buffer[i] > output_buffer[best])
             best = i;
 
+    // Sauvegarde du dernier résultat
     last_move = (Move)best;
     last_conf = (uint8_t)(output_buffer[best] * 100);
     result_ready = true;
 
-    // ===== PRINT COMPLET =====
     ESP_LOGI(TAG_AI, "===== AI RESULT =====");
 
+    // Affichage détaillé des probabilités pour chaque mouvement
     for (int i = 0; i < OUTPUT_SIZE; i++)
     {
         float pct = output_buffer[i] * 100.0f;
@@ -61,6 +62,20 @@ bool ai_push_sample(
                  MOVE_STR[i],
                  pct,
                  (i == best) ? "<-- BEST" : "");
+
+        // Publication MQTT du mouvement prédit
+        neopixel_blink_blue(0, 200, 200);
+        if (i == best) {
+            snprintf(payload, sizeof(payload), "%s", MOVE_STR[i]);
+
+            esp_mqtt_client_publish(
+                mqtt_get_client(),
+                MQTT_TOPIC_CLASS,
+                payload,
+                0, 2, 1
+            );
+        }
+
     }
 
     ESP_LOGI(TAG_AI, "Prediction: %s (%.2f%%)",
@@ -68,17 +83,4 @@ bool ai_push_sample(
              output_buffer[best] * 100.0f);
 
     ESP_LOGI(TAG_AI, "====================");
-
-    return true;
-}
-
-bool ai_get_result(Move *move, uint8_t *confidence)
-{
-    if (!result_ready)
-        return false;
-
-    *move = last_move;
-    *confidence = last_conf;
-    result_ready = false;
-    return true;
 }

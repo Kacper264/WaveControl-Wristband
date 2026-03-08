@@ -1,29 +1,19 @@
-#include <cstring>
-
-extern "C" {
-#include "net/mqtt_manager.h"
-
-#include "esp_log.h"
-#include "esp_err.h"
-#include "esp_idf_version.h"
-#include "mqtt_client.h"
-
-#include "common/strings_constants.h"
-}
-
-#include "ota/ota.h"
+#include "include.h"
 
 /* -------------------------------------------------------------------------- */
 
-static const char *TAG = "mqtt";
+static const char *TAG = "MQTT";
 
+/* Handle global du client MQTT */
 static esp_mqtt_client_handle_t s_mqtt_client = nullptr;
 
-#define MQTT_USERNAME "fil_rouge"
-#define MQTT_PASSWORD "lolipop"
-
 /* -------------------------------------------------------------------------- */
 
+/*
+ * Gestionnaire d'événements MQTT.
+ * Cette fonction est appelée par ESP-IDF pour tous les événements
+ * liés au client MQTT (connexion, réception de messages, erreurs, etc.).
+ */
 static void mqtt_event_handler(void *handler_args,
                                esp_event_base_t event_base,
                                int32_t event_id,
@@ -43,10 +33,10 @@ static void mqtt_event_handler(void *handler_args,
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT connecté");
 
-            // 👇 abonnement OTA ici
+            // Abonnement aux topics nécessaires (ex: OTA)
             esp_mqtt_client_subscribe(
                 s_mqtt_client,
-                "device/ota",
+                MQTT_TOPIC_OTA,
                 1
             );
             break;
@@ -61,7 +51,7 @@ static void mqtt_event_handler(void *handler_args,
 
         case MQTT_EVENT_DATA:
         {
-            // ----- extraction propre topic + payload -----
+            // ----- extraction du topic et du payload -----
             char topic[event->topic_len + 1];
             char payload[event->data_len + 1];
 
@@ -73,7 +63,7 @@ static void mqtt_event_handler(void *handler_args,
 
             ESP_LOGI(TAG, "MQTT RX [%s] -> %s", topic, payload);
 
-            // ----- hook OTA -----
+            // Transmission du message au module OTA
             ota_handle_mqtt(topic, payload);
 
             break;
@@ -86,6 +76,10 @@ static void mqtt_event_handler(void *handler_args,
 
 /* -------------------------------------------------------------------------- */
 
+/*
+ * Initialise et démarre le client MQTT.
+ * Configure l'URI du broker et les identifiants d'authentification.
+ */
 extern "C" void mqtt_init(void)
 {
     esp_mqtt_client_config_t mqtt_cfg{};
@@ -100,6 +94,7 @@ extern "C" void mqtt_init(void)
     mqtt_cfg.password = MQTT_PASSWORD;
 #endif
 
+    // Création du client MQTT
     s_mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
     if (!s_mqtt_client)
     {
@@ -107,6 +102,7 @@ extern "C" void mqtt_init(void)
         return;
     }
 
+    // Enregistrement du gestionnaire d'événements
     ESP_ERROR_CHECK(
         esp_mqtt_client_register_event(
             s_mqtt_client,
@@ -114,6 +110,7 @@ extern "C" void mqtt_init(void)
             mqtt_event_handler,
             nullptr));
 
+    // Démarrage du client
     ESP_ERROR_CHECK(esp_mqtt_client_start(s_mqtt_client));
 
     ESP_LOGI(TAG, "Client MQTT démarré (auth activée)");
@@ -121,6 +118,10 @@ extern "C" void mqtt_init(void)
 
 /* -------------------------------------------------------------------------- */
 
+/*
+ * Retourne le handle du client MQTT pour permettre
+ * aux autres modules de publier des messages.
+ */
 extern "C" esp_mqtt_client_handle_t mqtt_get_client(void)
 {
     return s_mqtt_client;
