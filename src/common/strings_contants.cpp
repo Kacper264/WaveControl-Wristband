@@ -74,7 +74,7 @@ const uint16_t BAT_ADC_STABILIZE_DELAY_US = 200;
 const uint32_t BAT_ADC_VREF_MV = 1100;
 
 const float BATTERY_FILTER_ALPHA = 0.2f;
-const float SECTOR_DETECTION_THRESHOLD = 0.002f;
+const float SECTOR_DETECTION_THRESHOLD = 0.001f;
 
 /* -------------------------------------------------------------------------- */
 /* IMU / I2C CONFIG                                                           */

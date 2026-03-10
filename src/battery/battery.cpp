@@ -137,7 +137,7 @@ bool is_on_sector(float vbat)
     {
         last_state = true;
     }
-    else if (delta <= -threshold)
+    else if (delta < threshold)
     {
         last_state = false;
     }

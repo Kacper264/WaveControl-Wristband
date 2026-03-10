@@ -12,6 +12,7 @@ static bool result_ready = false;
  */
 void ai_init()
 {
+    //init_model();
     if (!init_model()) {
         ESP_LOGE(TAG_AI, "MODEL INIT FAILED");
         return;

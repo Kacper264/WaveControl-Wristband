@@ -136,9 +136,7 @@ static void battery_report_task(void *arg)
                  pct,
                  sect ? "true" : "false"
         );
-        if (sect == true && pct < 100) {
-            neopixel_blink_green_loading(1, 200, 200);
-        }
+
         esp_mqtt_client_publish(
             mqtt_get_client(),
             MQTT_TOPIC_HEALTH,
@@ -161,8 +159,7 @@ void app_tasks_start(void)
     neopixel_set_pixel(1, 0, 0, 255);
 
     ai_queue = xQueueCreate(AI_QUEUE_LENGTH, sizeof(AiResult));
-    ESP_LOGI(TAG_APP, "AI result queue created");
 
     xTaskCreate(acquisition_task, ACQ_TASK_NAME, ACQ_TASK_STACK, nullptr, ACQ_TASK_PRIO, &acquisition_handle);
-    xTaskCreate(battery_report_task, BATTERY_TASK_NAME, BATTERY_TASK_STACK, nullptr, BATTERY_TASK_PRIO, nullptr);
+    //xTaskCreate(battery_report_task, BATTERY_TASK_NAME, BATTERY_TASK_STACK, nullptr, BATTERY_TASK_PRIO, nullptr);
 }
