@@ -21,7 +21,7 @@ extern "C" void app_main()
 
     // Initialisation du module IA
     ai_init();
-
+    ESP_LOGI(TAG_APP, "AI module initialized");
     // Configuration du bouton utilisateur
     gpio_config_t btn{};
     btn.pin_bit_mask = 1ULL << BUTTON_PIN;
